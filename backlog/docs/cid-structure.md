@@ -16,6 +16,19 @@ A Content Identifier (CID) encodes everything needed to verify content:
   - e.g. `0x12 0x20` = SHA2-256 with 32-byte digest
 - Example: `bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi`
 
+### Decomposition of CIDv1 example
+String (base32):
+  bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi
+  ^ remove 'b' prefix, base32-decode →
+
+Bytes (base16):
+  01  70  12  20  c3c4733ec8affd06cf9e9ff50ffc6bcd2ec85a6170004bb709669c31de94391a
+  │   │   │   │   └── Digest (32 bytes)
+  │   │   │   └─────  Digest length
+  │   │   └─────────  Hash function (SHA2-256)
+  │   └─────────────  Multicodec (dag-pb)
+  └─────────────────  Version (CIDv1)
+
 ## Relation to Nix hashes
 A CIDv1 with SHA2-256 multihash contains the same digest
 that Nix would express as `sha256-<base64>`.
