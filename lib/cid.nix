@@ -66,4 +66,6 @@ in
         cidVersionFromBase32 (builtins.substring 1 (-1) cid)
       else
         throw "Non base32 CID not supported";
+
+  cidHashFunction = cid: throw "not implemented";
 }
