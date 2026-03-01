@@ -31,6 +31,14 @@
         formatter = treefmtEval.config.build.wrapper;
         checks = {
           formatting = treefmtEval.config.build.check self;
+          unit-tests =
+            let
+              results = import ./tests/default.nix { inherit pkgs; };
+            in
+            if results == [ ] then
+              pkgs.runCommand "unit-tests" { } "touch $out"
+            else
+              throw "Tests failed: ${builtins.toJSON (map (t: t.name) results)}";
         };
       }
     );
