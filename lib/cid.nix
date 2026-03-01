@@ -1,83 +1,11 @@
-{ pkgs }:
+{ pkgs, encoding }:
 
 let
+  inherit (encoding) base32Byte base64Encode;
   minLength = 10;
 
   # Returns true if the CID string meets the minimum length requirement.
   isValidLength = cid: builtins.stringLength cid >= minLength;
-
-  /*
-    Lookup table mapping base32 characters (RFC 4648 alphabet, lowercase)
-    to their 5-bit integer values.
-  */
-  base32Values = {
-    a = 0;
-    b = 1;
-    c = 2;
-    d = 3;
-    e = 4;
-    f = 5;
-    g = 6;
-    h = 7;
-    i = 8;
-    j = 9;
-    k = 10;
-    l = 11;
-    m = 12;
-    n = 13;
-    o = 14;
-    p = 15;
-    q = 16;
-    r = 17;
-    s = 18;
-    t = 19;
-    u = 20;
-    v = 21;
-    w = 22;
-    x = 23;
-    y = 24;
-    z = 25;
-    "2" = 26;
-    "3" = 27;
-    "4" = 28;
-    "5" = 29;
-    "6" = 30;
-    "7" = 31;
-  };
-
-  /*
-    Returns the 5-bit integer value of a single base32 character.
-    Throws if the character is not in the base32 alphabet.
-  */
-  base32CharValue =
-    c: if base32Values ? ${c} then base32Values.${c} else throw "Invalid base32 character: ${c}";
-
-  /*
-    Decodes byte n (0-indexed) from a base32-encoded string s.
-    Each base32 character encodes 5 bits; this function reconstructs
-    the original 8-bit bytes from the bit stream.
-    Only n = 0, 1, 2 are implemented (sufficient for CID header parsing).
-    Throws for n > 2.
-  */
-  base32Byte =
-    s: n:
-    let
-      cv = i: base32CharValue (builtins.substring i 1 s);
-      c0 = cv 0;
-      c1 = cv 1;
-      c2 = cv 2;
-      c3 = cv 3;
-      c4 = cv 4;
-      mod = a: b: a - (a / b) * b;
-    in
-    if n == 0 then
-      c0 * 8 + c1 / 4
-    else if n == 1 then
-      (mod c1 4) * 64 + c2 * 2 + c3 / 16
-    else if n == 2 then
-      (mod c3 16) * 16 + c4 / 2
-    else
-      throw "base32Byte: n > 2 not implemented";
 
   # Maps multihash function codes (as decimal strings) to their canonical names.
   hashFunctionNames = {
@@ -89,16 +17,15 @@ let
     (i.e. the CID string with the multibase prefix removed).
   */
   cidVersionFromBase32 = code: base32Byte code 0;
-in
-{
-  /*
-    Returns the version number of a CIDv1 string as an integer.
-    Only base32-encoded CIDs (multibase prefix 'b') are supported.
-    Throws if the CID is too short, uses an unsupported multibase, or is malformed.
 
-    Example:
-      cidVersion "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
-      => 1
+  /*
+      Returns the version number of a CIDv1 string as an integer.
+      Only base32-encoded CIDs (multibase prefix 'b') are supported.
+      Throws if the CID is too short, uses an unsupported multibase, or is malformed.
+
+      Example:
+        cidVersion "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+        => 1
   */
   cidVersion =
     cid:
@@ -114,14 +41,14 @@ in
         throw "Non base32 CID not supported";
 
   /*
-    Returns the name of the hash function used in a CIDv1 string.
-    Only base32-encoded CIDv1 with sha2-256 multihash is supported.
-    Throws if the CID is too short, uses an unsupported multibase,
-    has an unsupported version, or uses an unsupported hash function.
+      Returns the name of the hash function used in a CIDv1 string.
+      Only base32-encoded CIDv1 with sha2-256 multihash is supported.
+      Throws if the CID is too short, uses an unsupported multibase,
+      has an unsupported version, or uses an unsupported hash function.
 
-    Example:
-      cidHashFunction "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
-      => "sha2-256"
+      Example:
+        cidHashFunction "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+        => "sha2-256"
   */
   cidHashFunction =
     cid:
@@ -147,5 +74,32 @@ in
         else
           throw "Unsupported hash function code: ${toString hashFnCode}";
 
-  cidDigest = cid: throw "CID digest extraction not implemented";
+  sriHashNames = {
+    "sha2-256" = "sha256";
+  };
+in
+{
+  inherit cidVersion cidHashFunction;
+
+  /*
+    Extracts the raw digest from a CIDv1 string and returns it as a Nix SRI hash string.
+    Only base32-encoded CIDv1 with sha2-256 multihash is supported.
+    Throws if the CID is too short, uses an unsupported multibase,
+    has an unsupported version, or uses an unsupported hash function.
+
+    Example:
+      cidDigest "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+      => "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
+  */
+  cidDigest =
+    cid:
+    let
+      hashFn = cidHashFunction cid; # validates version, multibase, hash fn
+      body = builtins.substring 1 (-1) cid;
+      digestLen = base32Byte body 3;
+      digestBytes = builtins.genList (i: base32Byte body (4 + i)) digestLen;
+      sriName =
+        if sriHashNames ? ${hashFn} then sriHashNames.${hashFn} else throw "No SRI name for ${hashFn}";
+    in
+    "${sriName}-${base64Encode digestBytes}";
 }

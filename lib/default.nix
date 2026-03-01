@@ -1,5 +1,9 @@
 { pkgs }:
 
+let
+  encoding = import ./encoding.nix { };
+in
 {
-  cid = import ./cid.nix { inherit pkgs; };
+  inherit encoding;
+  cid = import ./cid.nix { inherit pkgs encoding; };
 }

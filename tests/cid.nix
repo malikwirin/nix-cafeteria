@@ -2,7 +2,8 @@
 
 let
   inherit (pkgs.lib) runTests;
-  cid = import ../lib/cid.nix { inherit pkgs; };
+  cafeteriaLib = import ../lib/default.nix { inherit pkgs; };
+  inherit (cafeteriaLib) cid;
   cidDagPb = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
   cidRaw = "bafkreifjjcie6lypi6ny7amxnfftagclbuxndqonfipmb53t5lkpscezbm";
 
@@ -48,12 +49,12 @@ runTests {
 
   testCidDigestDagPb = {
     expr = cid.cidDigest cidDagPb;
-    expected = "w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=";
+    expected = "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=";
   };
 
   testCidDigestRaw = {
     expr = cid.cidDigest cidRaw;
-    expected = "iQWFhMlVK1mxMSgkGZdaWLp2RnBaW1q1dW4SnLJmf0o=";
+    expected = "sha256-qUiQTy8PR5uPgZdpSzAYSw0u0cHNKh7A93Pq1PkImQs=";
   };
 
   testCidDigestInvalidPrefix = {
