@@ -147,4 +147,5 @@ in
         else
           throw "Unsupported hash function code: ${toString hashFnCode}";
 
+  cidDigest = cid: throw "CID digest extraction not implemented";
 }

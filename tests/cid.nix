@@ -3,17 +3,18 @@
 let
   inherit (pkgs.lib) runTests;
   cid = import ../lib/cid.nix { inherit pkgs; };
-  cid1 = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
-  cid2 = "bafkreifjjcie6lypi6ny7amxnfftagclbuxndqonfipmb53t5lkpscezbm";
+  cidDagPb = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
+  cidRaw = "bafkreifjjcie6lypi6ny7amxnfftagclbuxndqonfipmb53t5lkpscezbm";
+
 in
 runTests {
-  testCidVersionV1 = {
-    expr = cid.cidVersion cid1;
+  testCidVersionDagPb = {
+    expr = cid.cidVersion cidDagPb;
     expected = 1;
   };
 
-  testCidVersionV1Short = {
-    expr = cid.cidVersion cid2;
+  testCidVersionRaw = {
+    expr = cid.cidVersion cidRaw;
     expected = 1;
   };
 
@@ -25,13 +26,13 @@ runTests {
     };
   };
 
-  testCidHashFunctionV1 = {
-    expr = cid.cidHashFunction cid1;
+  testCidHashFunctionDagPb = {
+    expr = cid.cidHashFunction cidDagPb;
     expected = "sha2-256";
   };
 
-  testCidHashFunctionV1Raw = {
-    expr = cid.cidHashFunction cid2;
+  testCidHashFunctionRaw = {
+    expr = cid.cidHashFunction cidRaw;
     expected = "sha2-256";
   };
 
@@ -45,4 +46,21 @@ runTests {
     };
   };
 
+  testCidDigestDagPb = {
+    expr = cid.cidDigest cidDagPb;
+    expected = "w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=";
+  };
+
+  testCidDigestRaw = {
+    expr = cid.cidDigest cidRaw;
+    expected = "iQWFhMlVK1mxMSgkGZdaWLp2RnBaW1q1dW4SnLJmf0o=";
+  };
+
+  testCidDigestInvalidPrefix = {
+    expr = builtins.tryEval (cid.cidDigest "notacid1234");
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
 }
