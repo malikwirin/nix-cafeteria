@@ -1,8 +1,7 @@
-{ pkgs }:
+{ pkgs, cafeteriaLib }:
 
 let
   inherit (pkgs.lib) runTests;
-  cafeteriaLib = import ../lib/default.nix { inherit pkgs; };
   inherit (cafeteriaLib) cid;
   cidDagPb = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
   cidRaw = "bafkreifjjcie6lypi6ny7amxnfftagclbuxndqonfipmb53t5lkpscezbm";
