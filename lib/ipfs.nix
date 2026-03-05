@@ -32,10 +32,16 @@ in
       ipfsCid,
       gateway ? "https://ipfs.io",
     }:
-    pkgs.fetchurl {
-      url = gatewayUrl gateway ipfsCid;
-      hash = cid.cidDigest ipfsCid;
-    };
+    let
+      codec = cid.cidCodec ipfsCid;
+    in
+    if codec != "raw" then
+      throw "fetchFromIpfs only supports raw CIDs, got codec: ${codec}"
+    else
+      pkgs.fetchurl {
+        url = gatewayUrl gateway ipfsCid;
+        hash = cid.cidDigest ipfsCid;
+      };
 
   # FIXME: not tested positively yet
   fetchFromIpfsCar =

@@ -34,6 +34,16 @@ in
     expected = "sha2-256";
   };
 
+  testCidCodecDagPb = {
+    expr = cid.cidCodec cidDagPb;
+    expected = "dag-pb";
+  };
+
+  testCidCodecRaw = {
+    expr = cid.cidCodec cidRaw;
+    expected = "raw";
+  };
+
   testCidHashFunctionUnsupported = {
     expr = builtins.tryEval (
       cid.cidHashFunction "bafkrgqhhyivzstcz3hhswshfjgy6buap4trqa3rvmrb7d2bkrpjb6rxzou"

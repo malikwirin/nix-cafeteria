@@ -20,6 +20,14 @@ let
   */
   cidVersionFromBase32 = code: base32Byte code 0;
 
+  # Maps multicodec codes (as decimal strings) to their canonical names.
+  codecNames = {
+    "85" = "raw"; # 0x55
+    "112" = "dag-pb"; # 0x70
+    "113" = "dag-cbor"; # 0x71
+    "297" = "dag-json"; # 0x0129
+  };
+
   /*
       Returns the version number of a CIDv1 string as an integer.
       Only base32-encoded CIDs (multibase prefix 'b') are supported.
@@ -70,6 +78,33 @@ let
 in
 {
   inherit cidVersion cidHashFunction cidValid;
+
+  /*
+    Returns the name of the multicodec used in a CIDv1 string.
+    Only base32-encoded CIDv1 is supported.
+    Throws if the CID is invalid, has an unsupported version,
+    or uses an unsupported codec.
+
+    Example:
+      cidCodec "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+      => "dag-pb"
+  */
+  cidCodec =
+    cid:
+    if !(cidValid cid) then
+      throw "Invalid CID"
+    else
+      let
+        body = builtins.substring 1 (-1) cid;
+        version = cidVersion cid;
+        codecCode = base32Byte body 1;
+      in
+      if version != 1 then
+        throw "Unsupported CID version: ${toString version}"
+      else if codecNames ? ${toString codecCode} then
+        codecNames.${toString codecCode}
+      else
+        throw "Unsupported codec code: ${toString codecCode}";
 
   /*
     Extracts the raw digest from a CIDv1 string and returns it as a Nix SRI hash string.

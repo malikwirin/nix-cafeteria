@@ -28,4 +28,17 @@ in
       value = false;
     };
   };
+
+  testFetchFromIpfsNonRawCodec = {
+    expr = builtins.tryEval (
+      ipfs.fetchFromIpfs {
+        ipfsCid = cidDagPb;
+        gateway = gateway;
+      }
+    );
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
 }
