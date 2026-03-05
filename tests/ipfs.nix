@@ -29,7 +29,7 @@ in
     };
   };
 
-  testFetchFromIpfsNonRawCodec = {
+  testFetchFromIpfsDagPbWithoutHash = {
     expr = builtins.tryEval (
       ipfs.fetchFromIpfs {
         ipfsCid = cidDagPb;
@@ -39,6 +39,20 @@ in
     expected = {
       success = false;
       value = false;
+    };
+  };
+
+  testFetchFromIpfsDagPbWithHash = {
+    expr = builtins.tryEval (
+      ipfs.fetchFromIpfs {
+        ipfsCid = cidDagPb;
+        gateway = gateway;
+        hash = "sha256-abc123fake=";
+      }
+    );
+    expected = {
+      success = true;
+      value = true;
     };
   };
 }
