@@ -43,16 +43,14 @@ in
   };
 
   testFetchFromIpfsDagPbWithHash = {
-    expr = builtins.tryEval (
-      ipfs.fetchFromIpfs {
-        ipfsCid = cidDagPb;
-        gateway = gateway;
-        hash = "sha256-abc123fake=";
-      }
-    );
-    expected = {
-      success = true;
-      value = true;
-    };
+    expr =
+      (builtins.tryEval (
+        ipfs.fetchFromIpfs {
+          ipfsCid = cidDagPb;
+          gateway = gateway;
+          hash = pkgs.lib.fakeHash;
+        }
+      )).success;
+    expected = true;
   };
 }
