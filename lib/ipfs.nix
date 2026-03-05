@@ -19,9 +19,9 @@ let
   gatewayUrl =
     gateway: cidStr:
     let
-      _ = cid.cidVersion cidStr; # validates CID, throws on invalid
+      valid = if !(cid.cidValid cidStr) then throw "Invalid CID: ${cidStr}" else true;
     in
-    "${stripTrailingSlash gateway}/ipfs/${cidStr}";
+    builtins.seq valid "${stripTrailingSlash gateway}/ipfs/${cidStr}";
 in
 {
   inherit gatewayUrl;

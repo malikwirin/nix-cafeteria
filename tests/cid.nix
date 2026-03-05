@@ -1,12 +1,11 @@
 { pkgs, cafeteriaLib }:
 
 let
-  inherit (pkgs.lib) runTests;
   inherit (cafeteriaLib) cid;
   constants = import ./constants.nix;
   inherit (constants) cidDagPb cidRaw;
 in
-runTests {
+{
   testCidVersionDagPb = {
     expr = cid.cidVersion cidDagPb;
     expected = 1;

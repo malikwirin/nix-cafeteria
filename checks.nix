@@ -5,9 +5,9 @@
   cafeteriaLib,
 }:
 let
-  constants = import ./tests/constants.nix;
-  inherit (constants) cidDagPb gateway;
-  tests = import ./tests { inherit pkgs cafeteriaLib; };
+  # constants = import ./tests/constants.nix;
+  # inherit (constants) cidDagPb gateway;
+  tests = pkgs.lib.runTests (import ./tests { inherit pkgs cafeteriaLib; });
 in
 {
   formatting = fmtBuild.check self;

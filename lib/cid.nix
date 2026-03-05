@@ -6,6 +6,8 @@ let
 
   # Returns true if the CID string meets the minimum length requirement.
   isValidLength = cid: builtins.stringLength cid >= minLength;
+  # Returns true if the CID string is valid (currently just checks length and multibase prefix).
+  cidValid = cid: isValidLength cid && builtins.substring 0 1 cid == "b";
 
   # Maps multihash function codes (as decimal strings) to their canonical names.
   hashFunctionNames = {
@@ -29,16 +31,10 @@ let
   */
   cidVersion =
     cid:
-    if !(isValidLength cid) then
-      throw "Invalid CID: too short (min ${toString minLength} characters)"
+    if !(cidValid cid) then
+      throw "Invalid CID"
     else
-      let
-        multibase = builtins.substring 0 1 cid;
-      in
-      if multibase == "b" then
-        cidVersionFromBase32 (builtins.substring 1 (-1) cid)
-      else
-        throw "Non base32 CID not supported";
+      cidVersionFromBase32 (builtins.substring 1 (-1) cid);
 
   /*
       Returns the name of the hash function used in a CIDv1 string.
@@ -52,34 +48,28 @@ let
   */
   cidHashFunction =
     cid:
-    if !(isValidLength cid) then
-      throw "Invalid CID: too short (min ${toString minLength} characters)"
+    if !(cidValid cid) then
+      throw "Invalid CID"
     else
       let
-        multibase = builtins.substring 0 1 cid;
+        body = builtins.substring 1 (-1) cid;
+        version = base32Byte body 0;
+        # byte 1 = multicodec (skipped, assumed single-byte varint)
+        hashFnCode = base32Byte body 2;
       in
-      if multibase != "b" then
-        throw "Non base32 CID not supported"
+      if version != 1 then
+        throw "Unsupported CID version: ${toString version}"
+      else if hashFunctionNames ? ${toString hashFnCode} then
+        hashFunctionNames.${toString hashFnCode}
       else
-        let
-          body = builtins.substring 1 (-1) cid;
-          version = base32Byte body 0;
-          # byte 1 = multicodec (skipped, assumed single-byte varint)
-          hashFnCode = base32Byte body 2;
-        in
-        if version != 1 then
-          throw "Unsupported CID version: ${toString version}"
-        else if hashFunctionNames ? ${toString hashFnCode} then
-          hashFunctionNames.${toString hashFnCode}
-        else
-          throw "Unsupported hash function code: ${toString hashFnCode}";
+        throw "Unsupported hash function code: ${toString hashFnCode}";
 
   sriHashNames = {
     "sha2-256" = "sha256";
   };
 in
 {
-  inherit cidVersion cidHashFunction;
+  inherit cidVersion cidHashFunction cidValid;
 
   /*
     Extracts the raw digest from a CIDv1 string and returns it as a Nix SRI hash string.

@@ -1,12 +1,11 @@
 { pkgs, cafeteriaLib }:
 
 let
-  inherit (pkgs.lib) runTests;
   constants = import ./constants.nix;
   inherit (constants) cidDagPb cidRaw gateway;
   inherit (cafeteriaLib) ipfs;
 in
-runTests {
+{
   testIpfsGatewayUrlDagPb = {
     expr = ipfs.gatewayUrl gateway cidDagPb;
     expected = "https://ipfs.io/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
