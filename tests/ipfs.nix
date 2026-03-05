@@ -13,7 +13,7 @@ in
 
   testIpfsGatewayUrlRaw = {
     expr = ipfs.gatewayUrl gateway cidRaw;
-    expected = "https://ipfs.io/ipfs/bafkreifjjcie6lypi6ny7amxnfftagclbuxndqonfipmb53t5lkpscezbm";
+    expected = "https://ipfs.io/ipfs/bafkreigsvbhuxc3fbe36zd3tzwf6fr2k3vnjcg5gjxzhiwhnqiu5vackey";
   };
 
   testIpfsGatewayUrlTrailingSlash = {

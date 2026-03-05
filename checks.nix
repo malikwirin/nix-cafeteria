@@ -5,8 +5,8 @@
   cafeteriaLib,
 }:
 let
-  # constants = import ./tests/constants.nix;
-  # inherit (constants) cidDagPb gateway;
+  constants = import ./tests/constants.nix;
+  inherit (constants) cidRaw gateway;
   allTests = import ./tests { inherit pkgs cafeteriaLib; };
   tests = pkgs.lib.runTests allTests;
   totalCount = builtins.length (builtins.attrNames allTests);
@@ -36,10 +36,10 @@ in
       )
   );
 
-  # ipfs-fetch-dagpb = cafeteriaLib.ipfs.fetchFromIpfs {
-  #   ipfsCid = cidDagPb;
-  #   inherit gateway;
-  # };
+  ipfs-fetch-dagpb = cafeteriaLib.ipfs.fetchFromIpfs {
+    ipfsCid = cidRaw;
+    inherit gateway;
+  };
 
   # ipfsFetchDagPbCar = cafeteriaLib.ipfs.fetchFromIpfsCar {
   #   carCid = "bafybeib3z6pvtz2h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4";

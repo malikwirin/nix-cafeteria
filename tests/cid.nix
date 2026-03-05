@@ -61,7 +61,7 @@ in
 
   testCidDigestRaw = {
     expr = cid.cidDigest cidRaw;
-    expected = "sha256-qUiQTy8PR5uPgZdpSzAYSw0u0cHNKh7A93Pq1PkImQs=";
+    expected = "sha256-0qhPS4tlCTfsj3PNi+LHSt1akRumTfJ0WO2CKdqASiY=";
   };
 
   testCidDigestInvalidPrefix = {

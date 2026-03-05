@@ -26,7 +26,17 @@ in
 {
   inherit gatewayUrl;
 
-  # FIXME: not tested positively yet
+  /*
+    Fetches a file from an IPFS gateway using a raw-codec CIDv1.
+    Only raw CIDs are supported, as the CID digest must match the file
+    content directly. DAG-encoded CIDs (e.g. dag-pb) will not match
+    the content hash returned by the gateway.
+    Throws if the CID is invalid or uses a non-raw codec.
+
+    Example:
+      fetchFromIpfs { ipfsCid = "bafkreigsvbhuxc3fbe36zd3tzwf6fr2k3vnjcg5gjxzhiwhnqiu5vackey"; }
+      => «derivation ...»
+  */
   fetchFromIpfs =
     {
       ipfsCid,
