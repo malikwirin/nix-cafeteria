@@ -1,10 +1,10 @@
 ---
 id: TASK-6
 title: Extract hash from CID
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-27 17:24'
-updated_date: '2026-03-01 15:36'
+updated_date: '2026-03-05 15:12'
 labels: []
 dependencies: []
 priority: high
