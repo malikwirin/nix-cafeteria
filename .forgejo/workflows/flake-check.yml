@@ -1,0 +1,20 @@
+name: Nix Flake Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  flake-check:
+    runs-on: codeberg-small
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: https://github.com/NixOS/nix-installer-action@main
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: nix flake check
+        run: nix flake check
