@@ -7,15 +7,34 @@
 let
   # constants = import ./tests/constants.nix;
   # inherit (constants) cidDagPb gateway;
-  tests = pkgs.lib.runTests (import ./tests { inherit pkgs cafeteriaLib; });
+  allTests = import ./tests { inherit pkgs cafeteriaLib; };
+  tests = pkgs.lib.runTests allTests;
+  totalCount = builtins.length (builtins.attrNames allTests);
+  passed = builtins.removeAttrs allTests (map (t: t.name) tests);
+  logPassed = builtins.foldl' (acc: name: builtins.trace "  ✓ ${name}" acc) null (
+    builtins.attrNames passed
+  );
+  logHeader = builtins.trace "Running ${toString totalCount} unit tests..." logPassed;
 in
 {
   formatting = fmtBuild.check self;
-  unit-tests =
+  unit-tests = builtins.seq logHeader (
     if tests == [ ] then
-      pkgs.runCommand "unit-tests" { } "touch $out"
+      builtins.trace "All ${toString totalCount} tests passed." (
+        pkgs.runCommand "unit-tests" { } "touch $out"
+      )
     else
-      throw "Tests failed: ${builtins.toJSON (map (t: t.name) tests)}";
+      throw (
+        builtins.concatStringsSep "\n" (
+          [ "${toString (builtins.length tests)} of ${toString totalCount} tests failed:\n" ]
+          ++ map (t: ''
+            ✗ ${t.name}
+              expected: ${builtins.toJSON t.expected}
+              got:      ${builtins.toJSON t.result}
+          '') tests
+        )
+      )
+  );
 
   # ipfs-fetch-dagpb = cafeteriaLib.ipfs.fetchFromIpfs {
   #   ipfsCid = cidDagPb;
