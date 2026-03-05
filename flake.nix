@@ -37,7 +37,11 @@
               pkgs.runCommand "unit-tests" { } "touch $out"
             else
               throw "Tests failed: ${builtins.toJSON (map (t: t.name) tests)}";
-        };
+    ipfs-fetch-dagpb = cafeteriaLib.ipfs.fetchFromIpfs {
+    ipfsCid = (import ./tests/constants.nix).cidDagPb;
+    gateway = (import ./tests/constants.nix).gateway;
+  };
+            };
       }
     );
 }

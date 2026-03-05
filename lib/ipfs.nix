@@ -1,4 +1,4 @@
-{ cid }:
+{ pkgs, cid }:
 
 let
   stripTrailingSlash =
@@ -7,8 +7,7 @@ let
       len = builtins.stringLength s;
     in
     if len > 0 && builtins.substring (len - 1) 1 s == "/" then builtins.substring 0 (len - 1) s else s;
-in
-{
+
   /*
     Returns the IPFS gateway URL for a given CID.
     Validates the CID and strips trailing slashes from the gateway address.
@@ -23,4 +22,16 @@ in
       _ = cid.cidVersion cidStr; # validates CID, throws on invalid
     in
     "${stripTrailingSlash gateway}/ipfs/${cidStr}";
+in
+{
+  inherit gatewayUrl;
+  fetchFromIpfs =
+    {
+      ipfsCid,
+      gateway ? "https://ipfs.io",
+    }:
+    pkgs.fetchurl {
+      url = gatewayUrl gateway ipfsCid;
+      hash = cid.cidDigest ipfsCid;
+    };
 }

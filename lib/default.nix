@@ -6,5 +6,5 @@ let
 in
 {
   inherit encoding cid;
-  ipfs = import ./ipfs.nix { inherit cid; };
+  ipfs = import ./ipfs.nix { inherit pkgs cid; };
 }
