@@ -24,24 +24,20 @@
         pkgs = nixpkgs.legacyPackages.${system};
 
         treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
+        fmtBuild = treefmtEval.config.build;
         cafeteriaLib = import ./lib { inherit pkgs; };
-        tests = import ./tests { inherit pkgs cafeteriaLib; };
       in
       {
         lib = cafeteriaLib;
-        formatter = treefmtEval.config.build.wrapper;
-        checks = {
-          formatting = treefmtEval.config.build.check self;
-          unit-tests =
-            if tests == [ ] then
-              pkgs.runCommand "unit-tests" { } "touch $out"
-            else
-              throw "Tests failed: ${builtins.toJSON (map (t: t.name) tests)}";
-    ipfs-fetch-dagpb = cafeteriaLib.ipfs.fetchFromIpfs {
-    ipfsCid = (import ./tests/constants.nix).cidDagPb;
-    gateway = (import ./tests/constants.nix).gateway;
-  };
-            };
+        formatter = fmtBuild.wrapper;
+        checks = import ./checks.nix {
+          inherit
+            pkgs
+            self
+            cafeteriaLib
+            fmtBuild
+            ;
+        };
       }
     );
 }

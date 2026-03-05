@@ -25,6 +25,8 @@ let
 in
 {
   inherit gatewayUrl;
+
+  # FIXME: not tested positively yet
   fetchFromIpfs =
     {
       ipfsCid,
@@ -34,4 +36,21 @@ in
       url = gatewayUrl gateway ipfsCid;
       hash = cid.cidDigest ipfsCid;
     };
+
+  # FIXME: not tested positively yet
+  fetchFromIpfsCar =
+    {
+      carCid,
+      blockCid,
+      gateway ? "https://ipfs.io",
+    }:
+    pkgs.fetchzip {
+      url = gatewayUrl gateway carCid;
+      hash = cid.cidDigest carCid;
+      postFetch = ''
+        ${pkgs.go-car}/bin/car extract $out --block ${blockCid} > $out
+        rm -rf $out/.car
+      '';
+    };
+
 }
