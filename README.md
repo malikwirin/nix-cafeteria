@@ -14,3 +14,6 @@ on the NixOS Discourse.
 
 Early experiment. Nothing here is production-ready.
 
+## Contributing
+please read the [Contributing guidelines](./CONTRIBUTING.md) before suggesting changes.
+
