@@ -6,7 +6,7 @@
 
 let
   inherit (constants) cidDagPb cidRaw gateway;
-  inherit (cafeteriaLib) ipfs;
+  inherit (cafeteriaLib) cid ipfs;
 in
 {
   testIpfsGatewayUrlDagPb = {
@@ -52,6 +52,55 @@ in
           ipfsCid = cidDagPb;
           gateway = gateway;
           hash = pkgs.lib.fakeHash;
+        }
+      )).success;
+    expected = true;
+  };
+
+  # --- fetchFromIpfsCar ---
+
+  testFetchFromIpfsCarRawEvaluates = {
+    expr =
+      (builtins.tryEval (
+        ipfs.fetchFromIpfsCar {
+          carCid = cidRaw;
+          inherit gateway;
+        }
+      )).success;
+    expected = true;
+  };
+
+  testFetchFromIpfsCarWithBlockCidEvaluates = {
+    expr =
+      (builtins.tryEval (
+        ipfs.fetchFromIpfsCar {
+          carCid = cidRaw;
+          blockCid = cidDagPb;
+          inherit gateway;
+        }
+      )).success;
+    expected = true;
+  };
+
+  testFetchFromIpfsCarInvalidCid = {
+    expr = builtins.tryEval (
+      ipfs.fetchFromIpfsCar {
+        carCid = "notacid";
+        inherit gateway;
+      }
+    );
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testFetchFromIpfsCarParsedCidEvaluates = {
+    expr =
+      (builtins.tryEval (
+        ipfs.fetchFromIpfsCar {
+          carCid = cid.parseCid cidRaw;
+          inherit gateway;
         }
       )).success;
     expected = true;

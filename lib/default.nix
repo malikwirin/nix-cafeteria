@@ -2,8 +2,9 @@
 
 let
   cid = import ./cid { inherit pkgs; };
+  car = import ./car.nix { inherit pkgs; };
 in
 {
-  inherit cid;
-  ipfs = import ./ipfs.nix { inherit pkgs cid; };
+  inherit car cid;
+  ipfs = import ./ipfs.nix { inherit pkgs cid car; };
 }

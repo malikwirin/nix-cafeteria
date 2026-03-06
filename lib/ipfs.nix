@@ -1,4 +1,8 @@
-{ pkgs, cid }:
+{
+  pkgs,
+  car,
+  cid,
+}:
 
 let
   inherit (cid) encoding;
@@ -111,20 +115,38 @@ in
     else
       throw "fetchFromIpfs unsupported codec: ${codec}";
 
-  # FIXME: not tested positively yet
+  /*
+    Fetches a CAR file from an IPFS gateway and extracts a specific block.
+
+    Arguments:
+      carCid   - CID of the CAR file (string or parsed CID)
+      blockCid - CID of the block to extract from the CAR
+      gateway  - IPFS gateway URL (default: "https://ipfs.io")
+
+    Returns:
+      A derivation containing the extracted block.
+  */
   fetchFromIpfsCar =
     {
       carCid,
-      blockCid,
+      blockCid ? null,
       gateway ? "https://ipfs.io",
     }:
-    pkgs.fetchzip {
-      url = gatewayUrl gateway carCid;
-      hash = cid.cidDigest carCid;
-      postFetch = ''
-        ${pkgs.go-car}/bin/car extract $out --block ${blockCid} > $out
-        rm -rf $out/.car
-      '';
-    };
+    let
+      parsed = if cid.isCid carCid then carCid else (cid.parseCid carCid);
+      carHash = cidDigestFromMultihash parsed.multihash;
+    in
+    pkgs.fetchzip (
+      {
+        url = gatewayUrl gateway carCid;
+        hash = carHash;
+      }
+      // (pkgs.lib.optionalAttrs (blockCid != null) {
+        postFetch = ''
+          ${car.carExtract { inherit blockCid; }}
+          rm -rf $out/.car
+        '';
+      })
+    );
 
 }

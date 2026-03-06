@@ -30,6 +30,7 @@ let
 
   # Maps multicodec codes (as decimal strings) to their canonical names.
   codecNames = {
+    "00" = "identity"; # 0x00
     "85" = "raw"; # 0x55
     "112" = "dag-pb"; # 0x70
     "113" = "dag-cbor"; # 0x71

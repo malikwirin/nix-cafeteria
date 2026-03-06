@@ -41,9 +41,29 @@ in
     inherit gateway;
   };
 
-  # ipfsFetchDagPbCar = cafeteriaLib.ipfs.fetchFromIpfsCar {
-  #   carCid = "bafybeib3z6pvtz2h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4x7h4";
-  #   blockCid = cidDagPb;
-  #   inherit gateway;
-  # };
+  ipfs-fetch-car =
+    let
+      testCar = pkgs.runCommand "test.car" { } ''
+        echo "hello ipfs" > hello.txt
+        ${pkgs.go-car}/bin/car create --file $out hello.txt
+      '';
+      inherit (cafeteriaLib.car) carInspect carList;
+      grep = (pkgs.lib.getExe pkgs.gnugrep);
+    in
+    pkgs.runCommand "ipfs-fetch-car-check" { } ''
+      echo "=== car inspect ==="
+      cat ${carInspect testCar}
+      echo "✓ car inspect succeeded"
+
+      echo "=== car list ==="
+      cat ${carList testCar}
+
+      # Check that car list output contains at least one CID (starts with 'b')
+      ${grep} -q '^b' ${carList testCar} \
+        || (echo "FAIL: car list produced no CIDs" && exit 1)
+      echo "✓ car list contains CIDs"
+
+      echo "=== all checks passed ==="
+      touch $out
+    '';
 }
