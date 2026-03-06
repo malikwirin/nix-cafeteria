@@ -1,7 +1,10 @@
-{ pkgs, cafeteriaLib }:
+{
+  pkgs,
+  cafeteriaLib,
+  constants,
+}:
 
 let
-  constants = import ./constants.nix;
   inherit (constants) cidDagPb cidRaw gateway;
   inherit (cafeteriaLib) ipfs;
 in

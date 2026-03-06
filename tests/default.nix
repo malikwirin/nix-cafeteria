@@ -4,7 +4,8 @@
 }:
 
 let
-  cid = import ./cid.nix { inherit pkgs cafeteriaLib; };
-  ipfs = import ./ipfs.nix { inherit pkgs cafeteriaLib; };
+  constants = import ./constants.nix;
+  cid = import ./cid { inherit pkgs cafeteriaLib constants; };
+  ipfs = import ./ipfs.nix { inherit pkgs cafeteriaLib constants; };
 in
 cid // ipfs

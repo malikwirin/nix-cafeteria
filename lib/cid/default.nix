@@ -2,7 +2,14 @@
 
 let
   encoding = import ./encoding.nix;
-  inherit (encoding) base32Byte base64Encode sriHashNames;
+  inherit (encoding)
+    base32Byte
+    base64Encode
+    sriHashNames
+    hexToBytes
+    base32Encode
+    isSha256
+    ;
   minLength = 10;
 
   # Returns true if the CID string meets the minimum length requirement.
@@ -208,15 +215,35 @@ let
       len = digestLen;
       digest = digestBytes;
     };
-in
-{
-  inherit
-    cidVersion
-    cidHashFunction
-    cidValid
-    encoding
-    cidCodec
-    ;
+
+  /*
+    Constructs a base32-encoded CIDv1 string for a raw block from a SHA-256 SRI hash.
+    Uses CIDv1 with codec "raw" (0x55) and multihash sha2-256 (0x12).
+
+    Arguments:
+      sha256 - A SHA-256 hash in SRI format (e.g. "sha256-w8RzPs...").
+
+    Returns:
+      A base32-encoded CIDv1 string with multibase prefix 'b'.
+
+    Example:
+      cidFromSha256 "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
+      => "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+  */
+  cidFromSha256 =
+    sha256:
+    let
+      hex = builtins.convertHash {
+        hash = sha256;
+        hashAlgo = "sha256";
+        toHashFormat = "base16";
+      };
+      # 01 = CIDv1, 55 = raw, 12 = sha2-256, 20 = 32 bytes
+      prefix = "01551220";
+      cidBytes = hexToBytes "${prefix}${hex}";
+    in
+    # b = multibase
+    "b${base32Encode cidBytes}";
 
   /*
     Parses a base32-encoded CIDv1 string into a structured CID attribute set.
@@ -249,15 +276,68 @@ in
   */
   parseCid =
     cidStr:
+    if !(cidValid cidStr) then
+      throw "parseCid: invalid or unsupported CID string: ${builtins.substring 0 20 (toString cidStr)}"
+    else
+      let
+        version = cidVersion cidStr;
+        codec = cidCodec cidStr;
+      in
+      mkCid {
+        inherit version codec;
+        multihash = mkMultihash (builtins.substring 1 (-1) cidStr);
+      };
+
+  cidFromSha =
+    hash:
     let
-      version = cidVersion cidStr;
-      codec = cidCodec cidStr;
+      converter =
+        if isSha256 hash then
+          hash: (cidFromSha256 hash)
+        else
+          throw "cidFromSha: expected a SHA-256 SRI hash string, got: ${toString hash}";
     in
-    assert cidValid cidStr;
-    mkCid {
-      inherit version codec;
-      multihash = mkMultihash (builtins.substring 1 (-1) cidStr);
-    };
+    converter hash;
+in
+{
+  inherit
+    cidVersion
+    cidHashFunction
+    cidValid
+    encoding
+    cidCodec
+    parseCid
+    ;
+
+  /*
+    Constructs a structured CIDv1 attribute set for a raw block
+    from a SHA-256 hash in SRI format.
+
+    This is a convenience constructor for the common case of
+    content-addressed raw blocks. The resulting CID uses
+    CIDv1 with codec "raw" (0x55) and multihash sha2-256 (0x12).
+
+    Arguments:
+      hash - A SHA-256 hash in SRI format (e.g. "sha256-w8RzPs...").
+
+    Returns:
+      A structured CID attribute set ({ _type = "cid"; ... }).
+
+    Example:
+      parseHash "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
+      => {
+        _type = "cid";
+        version = 1;
+        codec = "raw";
+        multihash = {
+          _type = "cid.multihash";
+          fn = { name = "sha2-256"; code = 18; };
+          len = 32;
+          digest = [ ... ];
+        };
+      }
+  */
+  parseHash = hash: parseCid (cidFromSha hash);
 
   /*
     Returns true if the given value is a parsed CID attribute set

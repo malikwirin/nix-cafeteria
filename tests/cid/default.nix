@@ -1,8 +1,11 @@
-{ pkgs, cafeteriaLib }:
+{
+  pkgs,
+  cafeteriaLib,
+  constants,
+}:
 
 let
   inherit (cafeteriaLib) cid;
-  constants = import ./constants.nix;
   inherit (constants) cidDagPb cidRaw hash;
 in
 {
@@ -160,5 +163,40 @@ in
   testIsCidWrongType = {
     expr = cid.isCid { _type = "notcid"; };
     expected = false;
+  };
+
+  # --- parseHash ---
+
+  testParseHashDagPbType = {
+    expr = (cid.parseHash "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=")._type;
+    expected = "cid";
+  };
+
+  testParseHashDagPbVersion = {
+    expr = (cid.parseHash "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=").version;
+    expected = 1;
+  };
+
+  testParseHashDagPbCodec = {
+    expr = (cid.parseHash "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=").codec;
+    expected = "raw";
+  };
+
+  testParseHashDagPbHashFn = {
+    expr = (cid.parseHash "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=").multihash.fn;
+    expected = hash.sha2-256;
+  };
+
+  testParseHashDagPbDigestLen = {
+    expr = (cid.parseHash "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=").multihash.len;
+    expected = 32;
+  };
+
+  testParseHashInvalid = {
+    expr = builtins.tryEval (cid.parseHash "notahash");
+    expected = {
+      success = false;
+      value = false;
+    };
   };
 }

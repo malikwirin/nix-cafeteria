@@ -90,8 +90,8 @@ in
   */
   fetchFromIpfs =
     {
-      ipfsCid,
       hash ? null,
+      ipfsCid ? cid.parseHash hash,
       gateway ? "https://ipfs.io",
     }:
     let

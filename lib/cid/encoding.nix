@@ -43,6 +43,29 @@ let
 
   base64Char = n: builtins.substring n 1 base64Table;
 
+  base32Table = "abcdefghijklmnopqrstuvwxyz234567";
+  base32Char = n: builtins.substring n 1 base32Table;
+
+  hexValues = {
+    "0" = 0;
+    "1" = 1;
+    "2" = 2;
+    "3" = 3;
+    "4" = 4;
+    "5" = 5;
+    "6" = 6;
+    "7" = 7;
+    "8" = 8;
+    "9" = 9;
+    "a" = 10;
+    "b" = 11;
+    "c" = 12;
+    "d" = 13;
+    "e" = 14;
+    "f" = 15;
+  };
+
+  hexCharValue = c: if hexValues ? ${c} then hexValues.${c} else throw "Invalid hex character: ${c}";
 in
 {
   inherit mod;
@@ -78,6 +101,29 @@ in
     else
       (mod c6 8) * 32 + c7;
 
+  /*
+    Decodes a lowercase hex string into a list of byte values (integers 0–255).
+    The input string length must be even.
+
+    Example:
+      hexToBytes "c3c4" => [ 195 196 ]
+      hexToBytes "0112" => [ 1 18 ]
+  */
+  hexToBytes =
+    s:
+    let
+      len = builtins.stringLength s;
+      numBytes = len / 2;
+      decodeByte =
+        i:
+        let
+          hi = hexCharValue (builtins.substring (i * 2) 1 s);
+          lo = hexCharValue (builtins.substring (i * 2 + 1) 1 s);
+        in
+        hi * 16 + lo;
+    in
+    builtins.genList decodeByte numBytes;
+
   # Encodes a list of integers (bytes) as a base64 string with padding.
   base64Encode =
     bytes:
@@ -101,6 +147,60 @@ in
     builtins.concatStringsSep "" (builtins.genList (i: encodeGroup (i * 3)) numGroups);
 
   /*
+    Encodes a list of byte values (integers 0–255) as a base32lower string
+    (RFC 4648, lowercase alphabet a–z2–7, no padding).
+
+    Each group of 5 bytes produces 8 base32 characters.
+    Trailing groups are encoded without padding.
+
+    Example:
+      base32Encode [ 1 85 18 32 ]
+      => "afkreja"
+  */
+  base32Encode =
+    bytes:
+    let
+      len = builtins.length bytes;
+      b = i: if i < len then builtins.elemAt bytes i else 0;
+      numGroups = (len + 4) / 5;
+      # number of valid base32 characters based on input length
+      r = mod len 5;
+      numChars =
+        if r == 0 then
+          numGroups * 8
+        else if r == 1 then
+          numGroups * 8 - 6
+        else if r == 2 then
+          numGroups * 8 - 4
+        else if r == 3 then
+          numGroups * 8 - 3
+        else
+          numGroups * 8 - 1;
+      encodeGroup =
+        g:
+        let
+          i = g * 5;
+          b0 = b i;
+          b1 = b (i + 1);
+          b2 = b (i + 2);
+          b3 = b (i + 3);
+          b4 = b (i + 4);
+        in
+        [
+          (base32Char (b0 / 8))
+          (base32Char ((mod b0 8) * 4 + b1 / 64))
+          (base32Char ((mod b1 64) / 2))
+          (base32Char ((mod b1 2) * 16 + b2 / 16))
+          (base32Char ((mod b2 16) * 2 + b3 / 128))
+          (base32Char ((mod b3 128) / 4))
+          (base32Char ((mod b3 4) * 8 + b4 / 32))
+          (base32Char (mod b4 32))
+        ];
+      allChars = builtins.concatLists (builtins.genList encodeGroup numGroups);
+    in
+    builtins.concatStringsSep "" (builtins.genList (i: builtins.elemAt allChars i) numChars);
+
+  /*
     Maps canonical multihash function names to their corresponding
     Nix SRI hash algorithm identifiers.
 
@@ -111,4 +211,9 @@ in
   sriHashNames = {
     "sha2-256" = "sha256";
   };
+
+  isSha256 =
+    hash:
+    with builtins;
+    (isString hash) && (stringLength hash == 51) && (substring 0 7 hash == "sha256-");
 }
