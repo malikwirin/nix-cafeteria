@@ -1,10 +1,9 @@
 { pkgs }:
 
 let
-  encoding = import ./encoding.nix { };
-  cid = import ./cid.nix { inherit pkgs encoding; };
+  cid = import ./cid { inherit pkgs; };
 in
 {
-  inherit encoding cid;
+  inherit cid;
   ipfs = import ./ipfs.nix { inherit pkgs cid; };
 }

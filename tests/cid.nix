@@ -3,7 +3,7 @@
 let
   inherit (cafeteriaLib) cid;
   constants = import ./constants.nix;
-  inherit (constants) cidDagPb cidRaw;
+  inherit (constants) cidDagPb cidRaw hash;
 in
 {
   testCidVersionDagPb = {
@@ -26,12 +26,12 @@ in
 
   testCidHashFunctionDagPb = {
     expr = cid.cidHashFunction cidDagPb;
-    expected = "sha2-256";
+    expected = hash.sha2-256;
   };
 
   testCidHashFunctionRaw = {
     expr = cid.cidHashFunction cidRaw;
-    expected = "sha2-256";
+    expected = hash.sha2-256;
   };
 
   testCidCodecDagPb = {
@@ -70,5 +70,95 @@ in
       success = false;
       value = false;
     };
+  };
+
+  # --- mkCid / parseCid ---
+
+  testParseCidDagPbType = {
+    expr = (cid.parseCid cidDagPb)._type;
+    expected = "cid";
+  };
+
+  testParseCidDagPbVersion = {
+    expr = (cid.parseCid cidDagPb).version;
+    expected = 1;
+  };
+
+  testParseCidDagPbCodec = {
+    expr = (cid.parseCid cidDagPb).codec;
+    expected = "dag-pb";
+  };
+
+  testParseCidDagPbHashFn = {
+    expr = (cid.parseCid cidDagPb).multihash.fn;
+    expected = hash.sha2-256;
+  };
+
+  testParseCidDagPbDigestLen = {
+    expr = (cid.parseCid cidDagPb).multihash.len;
+    expected = 32;
+  };
+
+  testParseCidDagPbDigestLength = {
+    expr = builtins.length (cid.parseCid cidDagPb).multihash.digest;
+    expected = 32;
+  };
+
+  testParseCidRawType = {
+    expr = (cid.parseCid cidRaw)._type;
+    expected = "cid";
+  };
+
+  testParseCidRawCodec = {
+    expr = (cid.parseCid cidRaw).codec;
+    expected = "raw";
+  };
+
+  testParseCidRawHashFn = {
+    expr = (cid.parseCid cidRaw).multihash.fn;
+    expected = hash.sha2-256;
+  };
+
+  testParseCidInvalid = {
+    expr = builtins.tryEval (cid.parseCid "notacid");
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  testParseCidInvalidShort = {
+    expr = builtins.tryEval (cid.parseCid "bshort");
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
+
+  # --- isCid ---
+
+  testIsCidParsed = {
+    expr = cid.isCid (cid.parseCid cidDagPb);
+    expected = true;
+  };
+
+  testIsCidString = {
+    expr = cid.isCid cidDagPb;
+    expected = false;
+  };
+
+  testIsCidAttrset = {
+    expr = cid.isCid { foo = 1; };
+    expected = false;
+  };
+
+  testIsCidNull = {
+    expr = cid.isCid null;
+    expected = false;
+  };
+
+  testIsCidWrongType = {
+    expr = cid.isCid { _type = "notcid"; };
+    expected = false;
   };
 }

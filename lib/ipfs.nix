@@ -1,6 +1,9 @@
 { pkgs, cid }:
 
 let
+  inherit (cid) encoding;
+  inherit (encoding) sriHashNames base64Encode;
+
   stripTrailingSlash =
     s:
     let
@@ -22,6 +25,37 @@ let
       valid = if !(cid.cidValid cidStr) then throw "Invalid CID: ${cidStr}" else true;
     in
     builtins.seq valid "${stripTrailingSlash gateway}/ipfs/${cidStr}";
+
+  /*
+    Computes a Nix SRI hash string from a parsed multihash attribute set.
+    Maps the multihash function name to the SRI algorithm identifier
+    and base64-encodes the digest bytes.
+
+    Arguments:
+      multihash - A multihash attribute set (as found in a parsed CID's
+                  `multihash` field). Must contain:
+                    fn     - Hash function set with `name` (string)
+                    digest - List of byte values (list of integers)
+
+    Returns:
+      A Nix SRI hash string (e.g. "sha256-w8RzPsiv/QbPnp/1D/...=").
+
+    Throws if no SRI name mapping exists for the hash function.
+
+    Example:
+      cidDigestFromMultihash {
+        fn = { name = "sha2-256"; code = 18; };
+        digest = [ 195 196 115 62 ... ];
+      }
+      => "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
+  */
+  cidDigestFromMultihash =
+    multihash:
+    let
+      inherit (multihash) fn digest;
+      hashName = sriHashNames."${fn.name}";
+    in
+    "${hashName}-${base64Encode digest}";
 in
 {
   inherit gatewayUrl;
@@ -61,7 +95,8 @@ in
       gateway ? "https://ipfs.io",
     }:
     let
-      codec = cid.cidCodec ipfsCid;
+      parsed = if cid.isCid ipfsCid then ipfsCid else cid.parseCid ipfsCid;
+      codec = parsed.codec;
       fetch =
         hash:
         pkgs.fetchurl {
@@ -70,7 +105,7 @@ in
         };
     in
     if codec == "raw" then
-      fetch (cid.cidDigest ipfsCid)
+      fetch (cidDigestFromMultihash parsed.multihash)
     else if codec == "dag-pb" then
       if hash == null then throw "fetchFromIpfs requires explicit hash for dag-pb CIDs" else fetch hash
     else

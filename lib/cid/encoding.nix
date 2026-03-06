@@ -1,5 +1,3 @@
-{ }:
-
 let
   mod = a: b: a - (a / b) * b;
 
@@ -101,4 +99,16 @@ in
       numGroups = (len + 2) / 3;
     in
     builtins.concatStringsSep "" (builtins.genList (i: encodeGroup (i * 3)) numGroups);
+
+  /*
+    Maps canonical multihash function names to their corresponding
+    Nix SRI hash algorithm identifiers.
+
+    Example:
+      sriHashNames."sha2-256"
+      => "sha256"
+  */
+  sriHashNames = {
+    "sha2-256" = "sha256";
+  };
 }
