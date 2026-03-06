@@ -1,4 +1,4 @@
-{ pkgs }:
+{ }:
 
 let
   encoding = import ./encoding.nix;
@@ -38,13 +38,13 @@ let
   };
 
   /*
-      Returns the version number of a CIDv1 string as an integer.
-      Only base32-encoded CIDs (multibase prefix 'b') are supported.
-      Throws if the CID is too short, uses an unsupported multibase, or is malformed.
+    Returns the version number of a CIDv1 string as an integer.
+    Only base32-encoded CIDs (multibase prefix 'b') are supported.
+    Throws if the CID is too short, uses an unsupported multibase, or is malformed.
 
-      Example:
-        cidVersion "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
-        => 1
+    Example:
+      cidVersion "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+      => 1
   */
   cidVersion =
     cid:

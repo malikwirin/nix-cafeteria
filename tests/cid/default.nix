@@ -1,5 +1,4 @@
 {
-  pkgs,
   cafeteriaLib,
   constants,
 }:

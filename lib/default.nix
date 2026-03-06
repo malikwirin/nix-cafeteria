@@ -1,7 +1,7 @@
 { pkgs }:
 
 let
-  cid = import ./cid { inherit pkgs; };
+  cid = import ./cid { };
   car = import ./car.nix { inherit pkgs; };
 in
 {
