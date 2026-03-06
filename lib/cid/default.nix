@@ -146,11 +146,17 @@ let
       version,
       codec,
       multihash,
+      cidStr, # TODO: make optional by creating out of the other paramaters
     }:
     assert isMultihash multihash;
     {
       _type = "cid";
-      inherit version codec multihash;
+      inherit
+        version
+        codec
+        multihash
+        cidStr
+        ;
     };
 
   /*
@@ -285,7 +291,7 @@ let
         codec = cidCodec cidStr;
       in
       mkCid {
-        inherit version codec;
+        inherit version codec cidStr;
         multihash = mkMultihash (builtins.substring 1 (-1) cidStr);
       };
 

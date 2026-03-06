@@ -105,4 +105,18 @@ in
       )).success;
     expected = true;
   };
+
+  # --- fetchCarBlocks ---
+
+  testFetchCarBlocksInvalidCid = {
+    expr = builtins.tryEval (
+      ipfs.fetchCarBlocks {
+        carCid = "notacid";
+      }
+    );
+    expected = {
+      success = false;
+      value = false;
+    };
+  };
 }

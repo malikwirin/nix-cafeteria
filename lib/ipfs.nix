@@ -60,9 +60,6 @@ let
       hashName = sriHashNames."${fn.name}";
     in
     "${hashName}-${base64Encode digest}";
-in
-{
-  inherit gatewayUrl;
 
   /*
       Fetches a file from an IPFS gateway using a CIDv1.
@@ -114,6 +111,82 @@ in
       if hash == null then throw "fetchFromIpfs requires explicit hash for dag-pb CIDs" else fetch hash
     else
       throw "fetchFromIpfs unsupported codec: ${codec}";
+in
+{
+  inherit gatewayUrl fetchFromIpfs;
+
+  /*
+    Fetches a CAR file from an IPFS gateway and makes all contained
+    blocks available as an attrset keyed by CID string.
+
+    - raw blocks are fetched directly via fetchFromIpfs (hash is
+      derivable from the CID, no CAR extraction needed)
+    - non-raw blocks (dag-pb, dag-cbor, ...) are extracted from the
+      downloaded CAR file
+
+    The root CID is excluded from the result.
+
+    Requires IFD (import-from-derivation).
+
+    Arguments:
+      carCid  - CID of the CAR file (string or parsed CID)
+      gateway - IPFS gateway URL (default: "https://ipfs.io")
+
+    Returns:
+      An attribute set mapping each child CID string to its derivation:
+      {
+        "bafkrei..." = «derivation»;  # raw, fetched directly
+        "bafybei..." = «derivation»;  # dag-pb, extracted from CAR
+      }
+
+    Example:
+      blocks = fetchCarBlocks {
+        carCid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
+      };
+  */
+  fetchCarBlocks =
+    {
+      carCid,
+      gateway ? "https://ipfs.io",
+    }:
+    let
+      carCidStr = if cid.isCid carCid then carCid.cidStr else carCid;
+      parsed = if cid.isCid carCid then carCid else cid.parseCid carCid;
+      carHash = cidDigestFromMultihash parsed.multihash;
+
+      carFile = pkgs.fetchurl {
+        url = gatewayUrl gateway carCidStr;
+        hash = carHash;
+      };
+
+      allCids = car.carCidStrings carFile;
+
+      # remove root CID
+      childCids = builtins.filter (c: c != carCidStr) allCids;
+
+      fetchBlock =
+        cidStr:
+        let
+          blockParsed = cid.parseCid cidStr;
+          codec = blockParsed.codec;
+        in
+        if codec == "raw" then
+          fetchFromIpfs {
+            ipfsCid = cidStr;
+            inherit gateway;
+          }
+        else
+          car.carExtract {
+            inherit carFile;
+            blockCid = cidStr;
+          };
+    in
+    builtins.listToAttrs (
+      builtins.map (cidStr: {
+        name = cidStr;
+        value = fetchBlock cidStr;
+      }) childCids
+    );
 
   /*
     Fetches a CAR file from an IPFS gateway and extracts a specific block.
@@ -148,5 +221,4 @@ in
         '';
       })
     );
-
 }
