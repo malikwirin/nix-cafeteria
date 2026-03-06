@@ -2,6 +2,7 @@
   pkgs,
   car,
   cid,
+  defaultGateway,
 }:
 
 let
@@ -93,7 +94,7 @@ let
     {
       hash ? null,
       ipfsCid ? cid.parseHash hash,
-      gateway ? "https://ipfs.io",
+      gateway ? defaultGateway,
     }:
     let
       parsed = if cid.isCid ipfsCid then ipfsCid else cid.parseCid ipfsCid;
@@ -147,7 +148,7 @@ in
   fetchCarBlocks =
     {
       carCid,
-      gateway ? "https://ipfs.io",
+      gateway ? defaultGateway,
     }:
     let
       carCidStr = if cid.isCid carCid then carCid.cidStr else carCid;
@@ -203,7 +204,7 @@ in
     {
       carCid,
       blockCid ? null,
-      gateway ? "https://ipfs.io",
+      gateway ? defaultGateway,
     }:
     let
       parsed = if cid.isCid carCid then carCid else (cid.parseCid carCid);

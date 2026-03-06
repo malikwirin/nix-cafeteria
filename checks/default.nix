@@ -5,9 +5,9 @@
   cafeteriaLib,
 }:
 let
-  constants = import ./tests/constants.nix;
+  constants = import ../tests/constants.nix;
   inherit (constants) cidRaw gateway;
-  allTests = import ./tests { inherit pkgs cafeteriaLib; };
+  allTests = import ../tests { inherit pkgs cafeteriaLib; };
   tests = pkgs.lib.runTests allTests;
   totalCount = builtins.length (builtins.attrNames allTests);
   passed = builtins.removeAttrs allTests (map (t: t.name) tests);
@@ -21,8 +21,13 @@ let
   '';
   cidStrings = cafeteriaLib.car.carCidStrings testCar;
   firstCid = builtins.elemAt cidStrings 0;
+  moduleChecks = import ./modules.nix {
+    inherit pkgs;
+    modulePath = ../modules;
+  };
 in
-{
+moduleChecks
+// {
   formatting = fmtBuild.check self;
   unit-tests = builtins.seq logHeader (
     if tests == [ ] then

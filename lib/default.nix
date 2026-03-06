@@ -1,4 +1,7 @@
-{ pkgs }:
+{
+  pkgs,
+  defaultGateway ? "https://ipfs.io",
+}:
 
 let
   cid = import ./cid { };
@@ -6,5 +9,12 @@ let
 in
 {
   inherit car cid;
-  ipfs = import ./ipfs.nix { inherit pkgs cid car; };
+  ipfs = import ./ipfs.nix {
+    inherit
+      pkgs
+      cid
+      car
+      defaultGateway
+      ;
+  };
 }

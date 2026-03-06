@@ -18,7 +18,14 @@
       flake-utils,
       treefmt-nix,
     }:
-    flake-utils.lib.eachDefaultSystem (
+    let
+      modules = import ./modules;
+    in
+    {
+      nixosModules = modules.nixos;
+      homeModules = modules.homeManager;
+    }
+    // flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -30,7 +37,7 @@
       {
         lib = cafeteriaLib;
         formatter = fmtBuild.wrapper;
-        checks = import ./checks.nix {
+        checks = import ./checks {
           inherit
             pkgs
             self
