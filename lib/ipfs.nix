@@ -68,15 +68,11 @@ let
       Supported codecs:
         - raw:    Hash is derived from the CID automatically.
                   The `hash` parameter is ignored.
-        - dag-pb: The gateway returns decoded UnixFS content whose hash
-                  cannot be derived from the CID. The `hash` parameter
-                  is required and must be a Nix SRI string
-                  (e.g. "sha256-..."). Use `nix-prefetch-url` to obtain it.
 
       Throws if:
         - the CID is invalid
         - the codec is unsupported
-        - dag-pb is used without an explicit hash
+        - dag-pb is used without treating it as raw
 
       Examples:
         fetchFromIpfs {
@@ -95,6 +91,7 @@ let
       hash ? null,
       ipfsCid ? cid.parseHash hash,
       gateway ? defaultGateway,
+      asRaw ? false,
     }:
     let
       parsed = if cid.isCid ipfsCid then ipfsCid else cid.parseCid ipfsCid;
@@ -106,10 +103,13 @@ let
           inherit hash;
         };
     in
-    if codec == "raw" then
+    if (codec == "raw" || asRaw) then
       fetch (cidDigestFromMultihash parsed.multihash)
     else if codec == "dag-pb" then
-      if hash == null then throw "fetchFromIpfs requires explicit hash for dag-pb CIDs" else fetch hash
+      if hash == null then
+        throw "fetchFromIpfs currently does not support the actual files of dag-pb CIDs"
+      else
+        fetch hash
     else
       throw "fetchFromIpfs unsupported codec: ${codec}";
 in
