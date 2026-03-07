@@ -22,8 +22,8 @@
       modules = import ./modules;
     in
     {
-      nixosModules = modules.nixos;
-      homeModules = modules.homeManager;
+      nixosModules.default = modules.nixos;
+      homeModules.default = modules.homeManager;
     }
     // flake-utils.lib.eachDefaultSystem (
       system:
