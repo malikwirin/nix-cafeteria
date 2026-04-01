@@ -9,6 +9,11 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    yants = {
+      url = "git+https://code.tvl.fyi/depot.git:/nix/yants.git";
+      flake = false;
+    };
   };
 
   outputs =
@@ -17,6 +22,7 @@
       nixpkgs,
       flake-utils,
       treefmt-nix,
+      yants,
     }:
     let
       modules = import ./modules;
@@ -32,7 +38,10 @@
 
         treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
         fmtBuild = treefmtEval.config.build;
-        cafeteriaLib = import ./lib { inherit pkgs; };
+        cafeteriaLib = import ./lib {
+          inherit pkgs;
+          yants = import yants { inherit (pkgs) lib; };
+        };
       in
       {
         lib = cafeteriaLib;
