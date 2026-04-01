@@ -1,10 +1,22 @@
 {
   pkgs,
-  go-car ? pkgs.go-car,
+  yants,
 }:
 
 let
-  car = pkgs.lib.getExe go-car;
+  inherit (yants)
+    defun
+    drv
+    either
+    list
+    path
+    string
+    ;
+
+  go-car = pkgs.lib.getExe pkgs.go-car;
+
+  carFile = either path drv; # TODO: check that the drv or path is a CAR file
+
   /*
     Lists all CIDs contained in a CAR file.
 
@@ -14,22 +26,24 @@ let
     Returns:
       A derivation whose output contains one CID per line.
   */
-  carList =
+  carList = defun [ carFile drv ] (
     carFile:
     pkgs.runCommand "car-ls" { } ''
-      ${car} ls ${carFile} > $out
-    '';
+      ${go-car} ls ${carFile} > $out
+    ''
+  );
 
-  carCidStrings =
+  carCidStrings = defun [ carFile (list string) ] (
     carFile:
     with builtins;
     let
       raw = readFile (carList carFile);
     in
-    filter (x: isString x && x != "") (split "\n" raw);
+    filter (x: isString x && x != "") (split "\n" raw)
+  );
 in
 {
-  inherit carList carCidStrings;
+  inherit carFile carList carCidStrings;
   /*
     Extracts a single block from a CAR file by its CID.
 
@@ -46,7 +60,7 @@ in
       blockCid,
     }:
     pkgs.runCommand "car-extract-${blockCid}" { } ''
-      ${car} get-block ${carFile} ${blockCid} > $out
+      ${go-car} get-block ${carFile} ${blockCid} > $out
     '';
 
   /*
@@ -62,7 +76,7 @@ in
   carInspect =
     carFile:
     pkgs.runCommand "car-inspect" { } ''
-      ${pkgs.go-car}/bin/car inspect ${carFile} > $out
+      ${go-car} inspect ${carFile} > $out
     '';
 
   /*

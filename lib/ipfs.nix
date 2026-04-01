@@ -3,11 +3,15 @@
   car,
   cid,
   defaultGateway,
+  yants,
 }:
 
 let
-  inherit (cid) encoding;
-  inherit (encoding) sriHashNames base64Encode;
+  inherit (cid)
+    asCid
+    cidStringType
+    ;
+  inherit (yants) defun string;
 
   stripTrailingSlash =
     s:
@@ -18,98 +22,66 @@ let
 
   /*
     Returns the IPFS gateway URL for a given CID.
-    Validates the CID and strips trailing slashes from the gateway address.
 
     Example:
       gatewayUrl "https://ipfs.io" "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => "https://ipfs.io/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
   */
-  gatewayUrl =
-    gateway: cidStr:
-    let
-      valid = if !(cid.cidValid cidStr) then throw "Invalid CID: ${cidStr}" else true;
-    in
-    builtins.seq valid "${stripTrailingSlash gateway}/ipfs/${cidStr}";
+  gatewayUrl = defun [ string cidStringType string ] (
+    gateway: cidStr: "${stripTrailingSlash gateway}/ipfs/${cidStr}"
+  );
 
   /*
-    Computes a Nix SRI hash string from a parsed multihash attribute set.
-    Maps the multihash function name to the SRI algorithm identifier
-    and base64-encodes the digest bytes.
+    Fetches a file from an IPFS gateway using a CIDv1.
+    Accepts both CID strings and parsed cidType attrsets.
+
+    Supported codecs:
+      - raw:    Hash is derived automatically from the CID multihash.
+      - dag-pb: Requires an explicit `hash` argument.
 
     Arguments:
-      multihash - A multihash attribute set (as found in a parsed CID's
-                  `multihash` field). Must contain:
-                    fn     - Hash function set with `name` (string)
-                    digest - List of byte values (list of integers)
+      ipfsCid  - CID string or cidType attrset. Defaults to cid.parseHash hash
+                 if only `hash` is provided.
+      hash     - Nix SRI hash string. Required for dag-pb. Ignored for raw.
+      gateway  - IPFS gateway URL (default: defaultGateway)
+      asRaw    - Treat as raw codec regardless of actual codec (default: false)
 
-    Returns:
-      A Nix SRI hash string (e.g. "sha256-w8RzPsiv/QbPnp/1D/...=").
-
-    Throws if no SRI name mapping exists for the hash function.
-
-    Example:
-      cidDigestFromMultihash {
-        fn = { name = "sha2-256"; code = 18; };
-        digest = [ 195 196 115 62 ... ];
+    Examples:
+      fetchFromIpfs {
+        ipfsCid = "bafkreigsvbhuxc3fbe36zd3tzwf6fr2k3vnjcg5gjxzhiwhnqiu5vackey";
       }
-      => "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
-  */
-  cidDigestFromMultihash =
-    multihash:
-    let
-      inherit (multihash) fn digest;
-      hashName = sriHashNames."${fn.name}";
-    in
-    "${hashName}-${base64Encode digest}";
+      => «derivation»
 
-  /*
-      Fetches a file from an IPFS gateway using a CIDv1.
-
-      Supported codecs:
-        - raw:    Hash is derived from the CID automatically.
-                  The `hash` parameter is ignored.
-        - dag-pb: The gateway returns decoded UnixFS content whose hash
-                  cannot be derived from the CID. The `hash` parameter
-                  is required and must be a Nix SRI string
-                  (e.g. "sha256-..."). Use `nix-prefetch-url` to obtain it.
-
-      Throws if:
-        - the CID is invalid
-        - the codec is unsupported
-        - dag-pb is used without an explicit hash
-
-      Examples:
-        fetchFromIpfs {
-          ipfsCid = "bafkreigsvbhuxc3fbe36zd3tzwf6fr2k3vnjcg5gjxzhiwhnqiu5vackey";
-        }
-        => «derivation ...»
-
-        fetchFromIpfs {
-          ipfsCid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
-          hash = "sha256-...";
-        }
-        => «derivation ...»
+      fetchFromIpfs {
+        hash = "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=";
+      }
+      => «derivation»
   */
   fetchFromIpfs =
     {
       hash ? null,
-      ipfsCid ? cid.parseHash hash,
+      ipfsCid ? cid.parseHash hash, # already returns cidType
       gateway ? defaultGateway,
+      asRaw ? false,
     }:
+    # ipfsCid is cidType — no isCid branch needed
     let
-      parsed = if cid.isCid ipfsCid then ipfsCid else cid.parseCid ipfsCid;
+      parsed = asCid ipfsCid;
       codec = parsed.codec;
       fetch =
         hash:
         pkgs.fetchurl {
-          url = gatewayUrl gateway ipfsCid;
           inherit hash;
+          url = gatewayUrl gateway parsed.cidStr;
         };
     in
-    if codec == "raw" then
-      fetch (cidDigestFromMultihash parsed.multihash)
+    if codec == "raw" || asRaw then
+      fetch parsed.hash
     else if codec == "dag-pb" then
-      if hash == null then throw "fetchFromIpfs requires explicit hash for dag-pb CIDs" else fetch hash
+      if hash == null then
+        throw "fetchFromIpfs currently does not support the actual files of dag-pb CIDs"
+      else
+        fetch hash
     else
       throw "fetchFromIpfs unsupported codec: ${codec}";
 in
@@ -117,63 +89,53 @@ in
   inherit gatewayUrl fetchFromIpfs;
 
   /*
-    Fetches a CAR file from an IPFS gateway and makes all contained
-    blocks available as an attrset keyed by CID string.
+    Fetches a CAR file from an IPFS gateway and returns all contained blocks
+    as an attrset keyed by CID string.
+    Accepts both CID strings and parsed cidType attrsets.
 
-    - raw blocks are fetched directly via fetchFromIpfs (hash is
-      derivable from the CID, no CAR extraction needed)
-    - non-raw blocks (dag-pb, dag-cbor, ...) are extracted from the
-      downloaded CAR file
-
+    Raw blocks are fetched directly (hash is derivable from the CID multihash).
+    Non-raw blocks are extracted from the downloaded CAR file.
     The root CID is excluded from the result.
 
     Requires IFD (import-from-derivation).
 
     Arguments:
-      carCid  - CID of the CAR file (string or parsed CID)
-      gateway - IPFS gateway URL (default: "https://ipfs.io")
+      carCid  - CID string or cidType attrset of the CAR file
+      gateway - IPFS gateway URL (default: defaultGateway)
 
     Returns:
-      An attribute set mapping each child CID string to its derivation:
+      An attrset mapping each child CID string to its derivation:
       {
         "bafkrei..." = «derivation»;  # raw, fetched directly
-        "bafybei..." = «derivation»;  # dag-pb, extracted from CAR
+        "bafybei..." = «derivation»;  # non-raw, extracted from CAR
       }
 
     Example:
-      blocks = fetchCarBlocks {
+      fetchCarBlocks {
         carCid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
-      };
+      }
   */
-  fetchCarBlocks =
+  fetchCarBlocks = # TODO: add typing with carCid as (either cidType string)
     {
       carCid,
       gateway ? defaultGateway,
     }:
     let
-      carCidStr = if cid.isCid carCid then carCid.cidStr else carCid;
-      parsed = if cid.isCid carCid then carCid else cid.parseCid carCid;
-      carHash = cidDigestFromMultihash parsed.multihash;
-
+      parsed = asCid carCid;
       carFile = pkgs.fetchurl {
-        url = gatewayUrl gateway carCidStr;
-        hash = carHash;
+        inherit (parsed) hash;
+        url = gatewayUrl gateway parsed.cidStr;
       };
-
       allCids = car.carCidStrings carFile;
-
-      # remove root CID
-      childCids = builtins.filter (c: c != carCidStr) allCids;
-
+      childCids = builtins.filter (c: c != parsed.cidStr) allCids;
       fetchBlock =
         cidStr:
         let
           blockParsed = cid.parseCid cidStr;
-          codec = blockParsed.codec;
         in
-        if codec == "raw" then
+        if blockParsed.codec == "raw" then
           fetchFromIpfs {
-            ipfsCid = cidStr;
+            ipfsCid = blockParsed;
             inherit gateway;
           }
         else
@@ -190,15 +152,16 @@ in
     );
 
   /*
-    Fetches a CAR file from an IPFS gateway and extracts a specific block.
+    Fetches a CAR file from an IPFS gateway and optionally extracts a specific block.
+    Accepts both CID strings and parsed cidType attrsets.
 
     Arguments:
-      carCid   - CID of the CAR file (string or parsed CID)
-      blockCid - CID of the block to extract from the CAR
-      gateway  - IPFS gateway URL (default: "https://ipfs.io")
+      carCid   - CID string or cidType attrset of the CAR file
+      blockCid - CID string of the block to extract from the CAR (optional)
+      gateway  - IPFS gateway URL (default: defaultGateway)
 
     Returns:
-      A derivation containing the extracted block.
+      A derivation containing the CAR file, or the extracted block if blockCid is given.
   */
   fetchFromIpfsCar =
     {
@@ -207,13 +170,12 @@ in
       gateway ? defaultGateway,
     }:
     let
-      parsed = if cid.isCid carCid then carCid else (cid.parseCid carCid);
-      carHash = cidDigestFromMultihash parsed.multihash;
+      parsed = asCid carCid;
     in
     pkgs.fetchzip (
       {
-        url = gatewayUrl gateway carCid;
-        hash = carHash;
+        inherit (parsed) hash;
+        url = gatewayUrl gateway parsed.cidStr;
       }
       // (pkgs.lib.optionalAttrs (blockCid != null) {
         postFetch = ''
