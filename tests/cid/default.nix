@@ -75,12 +75,6 @@ in
   };
 
   # --- mkCid / parseCid ---
-
-  testParseCidDagPbType = {
-    expr = (cid.parseCid cidDagPb)._type;
-    expected = "cid";
-  };
-
   testParseCidDagPbVersion = {
     expr = (cid.parseCid cidDagPb).version;
     expected = 1;
@@ -104,11 +98,6 @@ in
   testParseCidDagPbDigestLength = {
     expr = builtins.length (cid.parseCid cidDagPb).multihash.digest;
     expected = 32;
-  };
-
-  testParseCidRawType = {
-    expr = (cid.parseCid cidRaw)._type;
-    expected = "cid";
   };
 
   testParseCidRawCodec = {
@@ -137,39 +126,7 @@ in
     };
   };
 
-  # --- isCid ---
-
-  testIsCidParsed = {
-    expr = cid.isCid (cid.parseCid cidDagPb);
-    expected = true;
-  };
-
-  testIsCidString = {
-    expr = cid.isCid cidDagPb;
-    expected = false;
-  };
-
-  testIsCidAttrset = {
-    expr = cid.isCid { foo = 1; };
-    expected = false;
-  };
-
-  testIsCidNull = {
-    expr = cid.isCid null;
-    expected = false;
-  };
-
-  testIsCidWrongType = {
-    expr = cid.isCid { _type = "notcid"; };
-    expected = false;
-  };
-
   # --- parseHash ---
-
-  testParseHashDagPbType = {
-    expr = (cid.parseHash "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=")._type;
-    expected = "cid";
-  };
 
   testParseHashDagPbVersion = {
     expr = (cid.parseHash "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=").version;

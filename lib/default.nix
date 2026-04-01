@@ -10,7 +10,7 @@
 }:
 
 let
-  cid = import ./cid { };
+  cid = import ./cid { inherit yants; };
   car = import ./car.nix { inherit pkgs yants; };
 in
 {
@@ -21,6 +21,7 @@ in
       cid
       car
       defaultGateway
+      yants
       ;
   };
 }

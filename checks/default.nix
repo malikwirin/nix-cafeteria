@@ -91,11 +91,6 @@ moduleChecks
       echo "Found ${toString cidCount} CID(s)"
       echo "✓ carCids returned a non-empty list"
 
-      echo "First CID type: ${firstCid._type}"
-      [ "${firstCid._type}" = "cid" ] \
-        || (echo "✗ expected _type=cid" && exit 1)
-      echo "✓ first CID is a valid parsed CID"
-
       echo "First CID codec: ${firstCid.codec}"
       echo "✓ codec is ${firstCid.codec}"
 
