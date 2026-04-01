@@ -5,6 +5,7 @@ let
   inherit (encoding)
     base32Byte
     base64Encode
+    byte
     sriHashNames
     hexToBytes
     base32Encode
@@ -42,7 +43,7 @@ let
   multihashType = struct "multihash" {
     fn = hashFnType;
     len = int; # digest length in bytes
-    digest = list int; # raw byte values
+    digest = list byte; # raw byte values
   };
 
   cidStringType = restrict "cidString" cidValid string;
@@ -93,7 +94,7 @@ let
       hashFunction "afybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => { name = "sha2-256"; code = 18; }
   */
-  hashFunction =
+  hashFunction = defun [ string hashFnType ] (
     body:
     let
       code = base32Byte body 2;
@@ -104,7 +105,8 @@ let
         inherit code;
       }
     else
-      throw "Unsupported hash function code: ${toString code}";
+      throw "Unsupported hash function code: ${toString code}"
+  );
 
   /*
       Returns the name of the hash function used in a CIDv1 string.
@@ -281,7 +283,7 @@ let
       cidFromSha256 "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
       => "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
   */
-  cidFromSha256 =
+  cidFromSha256 = defun [ string cidStringType ] (
     sha256:
     let
       hex = builtins.convertHash {
@@ -289,12 +291,17 @@ let
         hashAlgo = "sha256";
         toHashFormat = "base16";
       };
-      # 01 = CIDv1, 55 = raw, 12 = sha2-256, 20 = 32 bytes
+      # CIDv1 binary prefix (hex):
+      #   01 = CID version 1
+      #   55 = multicodec "raw" (0x55)
+      #   12 = multihash function "sha2-256" (0x12)
+      #   20 = digest length: 32 bytes (0x20)
       prefix = "01551220";
       cidBytes = hexToBytes "${prefix}${hex}";
     in
-    # b = multibase
-    "b${base32Encode cidBytes}";
+    # "b" = multibase prefix for base32lower
+    "b${base32Encode cidBytes}"
+  );
 
   /*
     Parses a base32-encoded CIDv1 string into a structured CID attribute set.
@@ -395,10 +402,10 @@ in
       cidDigest "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
   */
-  cidDigest =
+  cidDigest = defun [ cidStringType string ] (
     cid:
     let
-      hashFn = cidHashFunction cid; # validates version, multibase, hash fn
+      hashFn = cidHashFunction cid;
       body = builtins.substring 1 (-1) cid;
       digestLen = base32Byte body 3;
       digestBytes = builtins.genList (i: base32Byte body (4 + i)) digestLen;
@@ -408,7 +415,8 @@ in
         else
           throw "No SRI name for ${hashFn.name}";
     in
-    "${sriName}-${base64Encode digestBytes}";
+    "${sriName}-${base64Encode digestBytes}"
+  );
 
   /*
     Normalizes a CID string or cidType attrset to a cidType attrset.

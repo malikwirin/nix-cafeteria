@@ -107,7 +107,7 @@ let
   );
 in
 {
-  inherit mod;
+  inherit byte mod;
 
   /*
     Decodes byte n (0-indexed) from a base32-encoded string s.
