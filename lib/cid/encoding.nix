@@ -1,5 +1,17 @@
+{ yants }:
+
 let
-  mod = a: b: a - (a / b) * b;
+  inherit (yants)
+    bool
+    restrict
+    int
+    defun
+    list
+    string
+    ;
+  byte = restrict "byte" (n: n >= 0 && n < 256) int;
+
+  mod = defun [ int int int ] (a: b: a - (a / b) * b);
 
   base32Values = {
     a = 0;
@@ -36,15 +48,32 @@ let
     "7" = 31;
   };
 
-  base32CharValue =
-    c: if base32Values ? ${c} then base32Values.${c} else throw "Invalid base32 character: ${c}";
+  char = restrict "char" (s: builtins.stringLength s == 1) string;
+
+  base32Index = restrict "base32Index" (n: n >= 0 && n < 32) int;
+  base32CharType = char; # FIXME
+
+  base32Char = defun [ base32Index base32CharType ] (n: builtins.substring n 1 base32Table);
+
+  base32CharValue = defun [ base32CharType base32Index ] (
+    c: if base32Values ? ${c} then base32Values.${c} else throw "Invalid base32 character: ${c}"
+  );
 
   base64Table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-  base64Char = n: builtins.substring n 1 base64Table;
+  base64Index = restrict "base64Index" (n: n >= 0 && n < 64) int;
+
+  /*
+    Returns the base64 character at position n in the base64 alphabet
+    (A–Z, a–z, 0–9, +, /).
+
+    Example:
+      base64Char 0  => "A"
+      base64Char 63 => "/"
+  */
+  base64Char = defun [ base64Index char ] (n: builtins.substring n 1 base64Table);
 
   base32Table = "abcdefghijklmnopqrstuvwxyz234567";
-  base32Char = n: builtins.substring n 1 base32Table;
 
   hexValues = {
     "0" = 0;
@@ -65,7 +94,17 @@ let
     "f" = 15;
   };
 
-  hexCharValue = c: if hexValues ? ${c} then hexValues.${c} else throw "Invalid hex character: ${c}";
+  /*
+    Returns the numeric value (0–15) of a lowercase hex character.
+    Throws if the character is not a valid hex digit.
+
+    Example:
+      hexCharValue "f" => 15
+      hexCharValue "0" => 0
+  */
+  hexCharValue = defun [ char int ] (
+    c: if hexValues ? ${c} then hexValues.${c} else throw "Invalid hex character: ${c}"
+  );
 in
 {
   inherit mod;
@@ -73,8 +112,11 @@ in
   /*
     Decodes byte n (0-indexed) from a base32-encoded string s.
     Works for any n — no upper limit.
+
+    Example:
+      base32Byte "bafybeig..." 0 => 1
   */
-  base32Byte =
+  base32Byte = defun [ string int byte ] (
     s: n:
     let
       group = n / 5;
@@ -99,7 +141,8 @@ in
     else if byteInGroup == 3 then
       (mod c4 2) * 128 + c5 * 4 + c6 / 8
     else
-      (mod c6 8) * 32 + c7;
+      (mod c6 8) * 32 + c7
+  );
 
   /*
     Decodes a lowercase hex string into a list of byte values (integers 0–255).
@@ -109,7 +152,7 @@ in
       hexToBytes "c3c4" => [ 195 196 ]
       hexToBytes "0112" => [ 1 18 ]
   */
-  hexToBytes =
+  hexToBytes = defun [ string (list byte) ] (
     s:
     let
       len = builtins.stringLength s;
@@ -122,10 +165,16 @@ in
         in
         hi * 16 + lo;
     in
-    builtins.genList decodeByte numBytes;
+    builtins.genList decodeByte numBytes
+  );
 
-  # Encodes a list of integers (bytes) as a base64 string with padding.
-  base64Encode =
+  /*
+    Encodes a list of byte values (integers 0–255) as a base64 string with padding.
+
+    Example:
+      base64Encode [ 195 196 115 ] => "w8Rz"
+  */
+  base64Encode = defun [ (list byte) string ] (
     bytes:
     let
       len = builtins.length bytes;
@@ -144,7 +193,8 @@ in
         + (if remaining >= 3 then base64Char (mod b2 64) else "=");
       numGroups = (len + 2) / 3;
     in
-    builtins.concatStringsSep "" (builtins.genList (i: encodeGroup (i * 3)) numGroups);
+    builtins.concatStringsSep "" (builtins.genList (i: encodeGroup (i * 3)) numGroups)
+  );
 
   /*
     Encodes a list of byte values (integers 0–255) as a base32lower string
@@ -154,16 +204,14 @@ in
     Trailing groups are encoded without padding.
 
     Example:
-      base32Encode [ 1 85 18 32 ]
-      => "afkreja"
+      base32Encode [ 1 85 18 32 ] => "afkreja"
   */
-  base32Encode =
+  base32Encode = defun [ (list byte) string ] (
     bytes:
     let
       len = builtins.length bytes;
       b = i: if i < len then builtins.elemAt bytes i else 0;
       numGroups = (len + 4) / 5;
-      # number of valid base32 characters based on input length
       r = mod len 5;
       numChars =
         if r == 0 then
@@ -198,7 +246,8 @@ in
         ];
       allChars = builtins.concatLists (builtins.genList encodeGroup numGroups);
     in
-    builtins.concatStringsSep "" (builtins.genList (i: builtins.elemAt allChars i) numChars);
+    builtins.concatStringsSep "" (builtins.genList (i: builtins.elemAt allChars i) numChars)
+  );
 
   /*
     Maps canonical multihash function names to their corresponding
@@ -212,8 +261,17 @@ in
     "sha2-256" = "sha256";
   };
 
-  isSha256 =
+  /*
+    Returns true if the given string is a valid SHA-256 SRI hash
+    (format: "sha256-<43 base64 chars>=").
+
+    Example:
+      isSha256 "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=" => true
+      isSha256 "md5-abc" => false
+  */
+  isSha256 = defun [ string bool ] (
     hash:
     with builtins;
-    (isString hash) && (stringLength hash == 51) && (substring 0 7 hash == "sha256-");
+    (isString hash) && (stringLength hash == 51) && (substring 0 7 hash == "sha256-")
+  );
 }

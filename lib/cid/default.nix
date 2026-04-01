@@ -1,7 +1,7 @@
 { yants }:
 
 let
-  encoding = import ./encoding.nix;
+  encoding = import ./encoding.nix { inherit yants; };
   inherit (encoding)
     base32Byte
     base64Encode
