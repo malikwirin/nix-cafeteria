@@ -111,6 +111,42 @@ let
   cidBody = restrict "cidBody" (s: cidValid ("b" + s)) string;
 
   /*
+    Extracts the multicodec code from position 1 (0-indexed) of a CID body.
+    Expects version byte already consumed at position 0.
+
+    Arguments:
+      body - Decoded CID body (cidBody)
+
+    Returns:
+      Integer multicodec code (codecType)
+
+    Example:
+      getCodecCode "afybeig..." → 112  (dag-pb)
+  */
+  getCodecCode = defun [ cidBody codecType ] (body: base32Byte body 1);
+
+  /*
+    Extracts the multihash function code from position 2 (0-indexed) of a CID body.
+
+    The CID body layout is:
+      0 - CID version
+      1 - multicodec code
+      2 - multihash function code
+      3 - digest length
+      4+ - digest bytes
+
+    Arguments:
+      body - Decoded CID body (cidBody)
+
+    Returns:
+      Integer multihash function code (hashFunctionCode)
+
+    Example:
+      getHashCode "afybeig..." → 18  (sha2-256)
+  */
+  getHashCode = defun [ cidBody hashFunctionCode ] (body: base32Byte body 2);
+
+  /*
     Extracts the hash function from a base32-decoded CID body.
     Returns an attribute set with the canonical name and numeric multihash code.
     Throws if the hash function code is not supported.
@@ -130,11 +166,11 @@ let
   hashFunction = defun [ cidBody hashFnType ] (
     body:
     let
-      code = hashFunctionCode (base32Byte body 2);
+      hashCode = getHashCode body;
     in
     {
-      name = hashFunctionNames.${toString code};
-      inherit code;
+      name = hashFunctionNames.${toString hashCode};
+      code = hashCode;
     }
   );
 
@@ -253,21 +289,6 @@ let
           hash = cidDigestFromMultihash multihash;
         }
       );
-
-  /*
-    Extracts the multicodec code from position 1 (0-indexed) of a CID body.
-    Expects version byte already consumed at position 0.
-
-    Arguments:
-      body - Decoded CID body (cidBody)
-
-    Returns:
-      Integer multicodec code (codecType)
-
-    Example:
-      getCodecCode "afybeig..." → 112  (dag-pb)
-  */
-  getCodecCode = defun [ cidBody codecType ] (body: base32Byte body 1);
 
   /*
     Returns the name of the multicodec used in a CIDv1 string.
