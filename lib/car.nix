@@ -1,16 +1,18 @@
 {
   pkgs,
+  cid,
   yants,
 }:
 
 let
+  inherit (cid) cidStringType cidType parseCid;
   inherit (yants)
     defun
     drv
     either
     list
     path
-    string
+    struct
     ;
 
   go-car = pkgs.lib.getExe pkgs.go-car;
@@ -33,7 +35,7 @@ let
     ''
   );
 
-  carCidStrings = defun [ carFile (list string) ] (
+  carCidStrings = defun [ carFile (list cidStringType) ] (
     carFile:
     with builtins;
     let
@@ -44,6 +46,7 @@ let
 in
 {
   inherit carFile carList carCidStrings;
+
   /*
     Extracts a single block from a CAR file by its CID.
 
@@ -55,13 +58,23 @@ in
       A derivation containing the extracted block.
   */
   carExtract =
-    {
-      carFile,
-      blockCid,
-    }:
-    pkgs.runCommand "car-extract-${blockCid}" { } ''
-      ${go-car} get-block ${carFile} ${blockCid} > $out
-    '';
+    defun
+      [
+        (struct "carExtractArgs" {
+          inherit carFile;
+          blockCid = cidStringType;
+        })
+        drv
+      ]
+      (
+        {
+          carFile,
+          blockCid,
+        }:
+        pkgs.runCommand "car-extract-${blockCid}" { } ''
+          ${go-car} get-block ${carFile} ${blockCid} > $out
+        ''
+      );
 
   /*
     Inspects a CAR file and returns its metadata
@@ -73,11 +86,12 @@ in
     Returns:
       A derivation whose output contains the CAR metadata.
   */
-  carInspect =
+  carInspect = defun [ carFile drv ] (
     carFile:
     pkgs.runCommand "car-inspect" { } ''
       ${go-car} inspect ${carFile} > $out
-    '';
+    ''
+  );
 
   /*
     Reads the output of carList and returns a Nix list of
@@ -90,5 +104,8 @@ in
     Returns:
       A list of parsed CID attrsets.
   */
-  carCids = { carFile, parseCid }: builtins.map parseCid (carCidStrings carFile);
+  carCids = defun [
+    carFile
+    (list cidType)
+  ] (carFile: builtins.map parseCid (carCidStrings carFile));
 }

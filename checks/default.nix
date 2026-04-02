@@ -77,11 +77,7 @@ moduleChecks
   car-cids =
     let
       inherit (cafeteriaLib.car) carCids;
-      inherit (cafeteriaLib.cid) parseCid;
-      cids = carCids {
-        carFile = testCar;
-        inherit parseCid;
-      };
+      cids = carCids testCar;
 
       cidCount = builtins.length cids;
       firstCid = builtins.elemAt cids 0;
