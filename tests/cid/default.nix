@@ -5,9 +5,40 @@
 
 let
   inherit (cafeteriaLib) cid;
+  inherit (cid.encoding) isSriHash;
   inherit (constants) cidDagPb cidRaw hash;
 in
 {
+  testIsSriHashValidSha256 = {
+    expr = isSriHash "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=";
+    expected = true;
+  };
+
+  testIsSriHashValidSha512 = {
+    expr = isSriHash "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    expected = true;
+  };
+
+  testIsSriHashInvalidNoDash = {
+    expr = isSriHash "sha256invalid";
+    expected = false;
+  };
+
+  testIsSriHashInvalidNoBase64 = {
+    expr = isSriHash "sha256-!invalid!";
+    expected = false;
+  };
+
+  testIsSriHashEmptyAlgo = {
+    expr = isSriHash "-base64data=";
+    expected = false;
+  };
+
+  testIsSriHashNonString = {
+    expr = isSriHash 123;
+    expected = false;
+  };
+
   testCidVersionDagPb = {
     expr = cid.cidVersion cidDagPb;
     expected = 1;

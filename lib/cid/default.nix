@@ -6,12 +6,15 @@ let
     base32Byte
     base64Encode
     byte
+    sha256Hash
+    sriHash
+    sriHashAlgo
     sriHashNames
     hexToBytes
     base32Encode
-    isSha256
     ;
   inherit (yants)
+    bool
     defun
     either
     int
@@ -24,20 +27,25 @@ let
   minLength = 10; # FIXME: currently arbitrary
 
   # Returns true if the CID string meets the minimum length requirement.
-  isValidLength = cid: builtins.stringLength cid >= minLength;
+  isValidLength = defun [ string bool ] (cid: builtins.stringLength cid >= minLength);
   # Returns true if the CID string is valid (currently just checks length and multibase prefix).
-  cidValid = cid: isValidLength cid && builtins.substring 0 1 cid == "b";
+  cidValid = defun [ string bool ] (cid: isValidLength cid && builtins.substring 0 1 cid == "b");
 
   # Maps multihash function codes (as decimal strings) to their canonical names.
   hashFunctionNames = {
     "18" = "sha2-256"; # 0x12
   };
 
+  hashFunctionCode = restrict "hashFunctionCode" (v: hashFunctionNames ? ${toString v}) int;
+  hashFunctionName = restrict "hashFunctionName" (
+    v: builtins.elem v (builtins.attrValues hashFunctionNames)
+  ) string;
+
   cidVersionType = restrict "cidVersion" (v: v == 0 || v == 1) int;
 
   hashFnType = struct "hashFn" {
-    name = string; # e.g. "sha2-256" TODO: restrict to supported names
-    code = int; # e.g. 18
+    name = hashFunctionName; # e.g. "sha2-256"
+    code = hashFunctionCode; # e.g. 18
   };
 
   multihashType = struct "multihash" {
@@ -48,14 +56,6 @@ let
 
   cidStringType = restrict "cidString" cidValid string;
 
-  cidType = struct "cid" {
-    version = cidVersionType;
-    codec = string; # TODO: restrict to supported codecs
-    multihash = multihashType;
-    cidStr = cidStringType;
-    hash = string; # Find better type
-  };
-
   # Maps multicodec codes (as decimal strings) to their canonical names.
   codecNames = {
     "00" = "identity"; # 0x00
@@ -63,6 +63,33 @@ let
     "112" = "dag-pb"; # 0x70
     "113" = "dag-cbor"; # 0x71
     "297" = "dag-json"; # 0x0129
+  };
+
+  codecType = restrict "codec" (v: codecNames ? ${toString v}) int;
+  codecName = restrict "codecName" (v: builtins.elem v (builtins.attrValues codecNames)) string;
+
+  cidHashConverters = {
+    "sha256" = cidFromSha256;
+    # "sha512" = cidFromSha512;
+  };
+
+  supportedShaHash = restrict "supportedShaHash" (s: cidHashConverters ? ${sriHashAlgo s}) sriHash;
+
+  /*
+    Type for functions that convert supported SHA hashes to CID strings.
+    Signature: supportedShaHash → cidStringType
+  */
+  cidConverterType = defun [
+    supportedShaHash
+    cidStringType
+  ];
+
+  cidType = struct "cid" {
+    version = cidVersionType;
+    codec = codecName;
+    multihash = multihashType;
+    cidStr = cidStringType;
+    hash = sriHash;
   };
 
   /*
@@ -76,6 +103,12 @@ let
   cidVersion = defun [ cidStringType cidVersionType ] (
     cidStr: base32Byte (builtins.substring 1 (-1) cidStr) 0
   );
+
+  /*
+    Type for base32-decoded CID body (without multibase prefix).
+    Validates by re-prefixing "b" and checking cidStringType validity.
+  */
+  cidBody = restrict "cidBody" (s: cidValid ("b" + s)) string;
 
   /*
     Extracts the hash function from a base32-decoded CID body.
@@ -94,19 +127,30 @@ let
       hashFunction "afybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => { name = "sha2-256"; code = 18; }
   */
-  hashFunction = defun [ string hashFnType ] (
+  hashFunction = defun [ cidBody hashFnType ] (
     body:
     let
-      code = base32Byte body 2;
+      code = hashFunctionCode (base32Byte body 2);
     in
-    if hashFunctionNames ? ${toString code} then
-      {
-        name = hashFunctionNames.${toString code};
-        inherit code;
-      }
-    else
-      throw "Unsupported hash function code: ${toString code}"
+    {
+      name = hashFunctionNames.${toString code};
+      inherit code;
+    }
   );
+
+  /*
+    Extracts the CID body (without multibase prefix 'b') from a base32-encoded CID string.
+
+    Arguments:
+      cidStr - Valid base32-encoded CID string (cidStringType)
+
+    Returns:
+      The body portion as a string (cidBody)
+
+    Example:
+      getBody "bafybeig..." → "afybeig..."
+  */
+  getBody = defun [ cidStringType cidBody ] (cidStr: builtins.substring 1 (-1) cidStr);
 
   /*
       Returns the name of the hash function used in a CIDv1 string.
@@ -119,8 +163,8 @@ let
   cidHashFunction = defun [ cidStringType hashFnType ] (
     cidStr:
     let
-      body = builtins.substring 1 (-1) cidStr;
-      version = base32Byte body 0;
+      body = getBody cidStr;
+      version = cidVersion cidStr;
     in
     if version != 1 then throw "Unsupported CID version: ${toString version}" else hashFunction body
   );
@@ -148,7 +192,7 @@ let
       }
       => "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
   */
-  cidDigestFromMultihash = defun [ multihashType string ] (
+  cidDigestFromMultihash = defun [ multihashType sriHash ] (
     multihash:
     let
       inherit (multihash) fn digest;
@@ -186,7 +230,7 @@ let
       [
         (struct "mkCidArgs" {
           version = cidVersionType;
-          codec = string;
+          codec = codecName;
           multihash = multihashType;
           cidStr = cidStringType;
         })
@@ -211,6 +255,21 @@ let
       );
 
   /*
+    Extracts the multicodec code from position 1 (0-indexed) of a CID body.
+    Expects version byte already consumed at position 0.
+
+    Arguments:
+      body - Decoded CID body (cidBody)
+
+    Returns:
+      Integer multicodec code (codecType)
+
+    Example:
+      getCodecCode "afybeig..." → 112  (dag-pb)
+  */
+  getCodecCode = defun [ cidBody codecType ] (body: base32Byte body 1);
+
+  /*
     Returns the name of the multicodec used in a CIDv1 string.
     Only base32-encoded CIDv1 is supported.
     Throws if the CID is invalid, has an unsupported version,
@@ -220,12 +279,12 @@ let
       cidCodec "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => "dag-pb"
   */
-  cidCodec = defun [ cidStringType string ] (
+  cidCodec = defun [ cidStringType codecName ] (
     cidStr:
     let
-      body = builtins.substring 1 (-1) cidStr;
+      body = getBody cidStr;
       version = cidVersion cidStr;
-      codecCode = base32Byte body 1;
+      codecCode = getCodecCode body;
     in
     if version != 1 then
       throw "Unsupported CID version: ${toString version}"
@@ -257,7 +316,7 @@ let
         digest = [ 195 196 115 62 ... ];
       }
   */
-  mkMultihash = defun [ string multihashType ] (
+  mkMultihash = defun [ cidBody multihashType ] (
     body:
     let
       digestLen = base32Byte body 3;
@@ -268,6 +327,20 @@ let
       digest = builtins.genList (i: base32Byte body (4 + i)) digestLen;
     }
   );
+
+  /*
+    Constructs a multihash from a CIDv1 string by extracting the body and parsing it.
+
+    Arguments:
+      cidStr - Valid base32-encoded CIDv1 string (cidStringType)
+
+    Returns:
+      Parsed multihash structure (multihashType)
+
+    Example:
+      mkMultiHashFromCid "bafybeig..." → { fn = { name = "sha2-256"; code = 18; }; len = 32; digest = [ ... ]; }
+  */
+  mkMultiHashFromCid = defun [ cidStringType multihashType ] (cidStr: mkMultihash (getBody cidStr));
 
   /*
     Constructs a base32-encoded CIDv1 string for a raw block from a SHA-256 SRI hash.
@@ -283,11 +356,11 @@ let
       cidFromSha256 "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
       => "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
   */
-  cidFromSha256 = defun [ string cidStringType ] (
-    sha256:
+  cidFromSha256 = defun [ sha256Hash cidStringType ] (
+    hash:
     let
       hex = builtins.convertHash {
-        hash = sha256;
+        inherit hash;
         hashAlgo = "sha256";
         toHashFormat = "base16";
       };
@@ -336,20 +409,30 @@ let
       inherit cidStr;
       version = cidVersion cidStr;
       codec = cidCodec cidStr;
-      multihash = mkMultihash (builtins.substring 1 (-1) cidStr);
+      multihash = mkMultiHashFromCid cidStr;
     }
   );
 
-  cidFromSha =
+  /*
+    Generic dispatch function for converting any supported SHA hash to a CID string.
+    Looks up the appropriate converter in cidHashConverters based on the hash algorithm.
+
+    Arguments:
+      hash - Supported SHA hash (supportedShaHash)
+
+    Returns:
+      Base32-encoded CIDv1 string (cidStringType)
+
+    Example:
+      cidFromSha "sha256-w8RzPsiv/..." → "bafybeigdyrzt5s..."
+  */
+  cidFromSha = cidConverterType (
     hash:
     let
-      converter =
-        if isSha256 hash then
-          hash: (cidFromSha256 hash)
-        else
-          throw "cidFromSha: expected a SHA-256 SRI hash string, got: ${toString hash}";
+      converter = cidHashConverters.${sriHashAlgo hash};
     in
-    converter hash;
+    converter hash
+  );
 in
 {
   inherit
@@ -390,7 +473,7 @@ in
         };
       }
   */
-  parseHash = hash: parseCid (cidFromSha hash);
+  parseHash = defun [ supportedShaHash cidType ] (hash: parseCid (cidFromSha hash));
 
   /*
     Extracts the raw digest from a CIDv1 string and returns it as a Nix SRI hash string.
@@ -402,7 +485,7 @@ in
       cidDigest "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
   */
-  cidDigest = defun [ cidStringType string ] (
+  cidDigest = defun [ cidStringType supportedShaHash ] (
     cid:
     let
       hashFn = cidHashFunction cid;
