@@ -60,4 +60,37 @@ in
     mkdir -p "$out"
     echo "ok" > "$out/result"
   '';
+
+  fetchFromIpfs-welcomeImage =
+    let
+      rootCid = "bafybeicn7i3soqdgr7dwnrwytgq4zxy7a5jpkizrvhm5mv6bgjd32wm3q4";
+      path = "welcome-to-IPFS.jpg";
+    in
+    pkgs.runCommand "fetchFromIpfs-welcomeImage" { } ''
+      set -euo pipefail
+
+      # Fetch via fetchFromIpfs using root CID
+      fromIpfs="${
+        fetchFromIpfs {
+          ipfsCid = rootCid;
+          inherit path;
+        }
+      }"
+
+      # Fetch the same bytes over HTTP with a pinned hash.
+      fromHttp="${
+        pkgs.fetchurl {
+          url = "https://ipfs.io/ipfs/${rootCid}/${path}";
+          sha256 = "sha256-n3HxabpOp/0wSZ9Pt4Qaebk+PuYUlzNNp85c6mmgJHM=";
+        }
+      }"
+
+      cmp -s "$fromIpfs" "$fromHttp" || {
+        echo "Mismatch between fetchFromIpfs and fetchurl for welcome-to-IPFS.jpg"
+        exit 1
+      }
+
+      mkdir -p "$out"
+      echo "ok" > "$out/result"
+    '';
 }
