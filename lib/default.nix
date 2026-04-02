@@ -11,7 +11,7 @@
 
 let
   cid = import ./cid { inherit yants; };
-  car = import ./car.nix { inherit pkgs yants; };
+  car = import ./car.nix { inherit pkgs cid yants; };
 in
 {
   inherit car cid;

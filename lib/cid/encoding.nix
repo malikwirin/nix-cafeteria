@@ -2,7 +2,6 @@
 
 let
   inherit (yants)
-    bool
     restrict
     int
     defun
@@ -12,6 +11,51 @@ let
   byte = restrict "byte" (n: n >= 0 && n < 256) int;
 
   mod = defun [ int int int ] (a: b: a - (a / b) * b);
+
+  /*
+    Validates SRI hash format: "algorithm-base64data".
+    Recognizes standard Base64URL alphabet with padding.
+
+    Arguments:
+      s - String to validate
+
+    Returns:
+      true if valid SRI format, false otherwise
+
+    Example:
+      isSriHash "sha256-w8RzPsiv..." → true
+      isSriHash "invalid" → false
+  */
+  isSriHash = s: builtins.isString s && builtins.match ".+-[A-Za-z0-9+/]+=*" s != null;
+
+  sriHash = restrict "sriHash" isSriHash string;
+
+  /*
+    List of recognized SRI hash algorithm names.
+    Single source of truth for supported algorithms across the library.
+  */
+  sriAlgoNames = [
+    "sha256"
+    "sha384"
+    "sha512"
+  ];
+
+  hashAlgoName = restrict "hashAlgoName" (a: builtins.elem a sriAlgoNames) string;
+
+  /*
+    Extracts the algorithm name from a valid SRI hash string.
+    Assumes input is sriHash (format already validated).
+
+    Arguments:
+      s - Valid SRI hash (sriHash)
+
+    Returns:
+      Algorithm name (hashAlgoName)
+
+    Example:
+      sriHashAlgo "sha256-w8RzPsiv..." → "sha256"
+  */
+  sriHashAlgo = defun [ sriHash hashAlgoName ] (s: builtins.head (builtins.match "([^-]+)-.*" s));
 
   base32Values = {
     a = 0;
@@ -107,7 +151,15 @@ let
   );
 in
 {
-  inherit byte mod;
+  inherit
+    byte
+    isSriHash
+    mod
+    sriHash
+    sriHashAlgo
+    ;
+
+  sha256Hash = restrict "sha256" (s: (sriHashAlgo s) == "sha256") sriHash;
 
   /*
     Decodes byte n (0-indexed) from a base32-encoded string s.
@@ -261,17 +313,4 @@ in
     "sha2-256" = "sha256";
   };
 
-  /*
-    Returns true if the given string is a valid SHA-256 SRI hash
-    (format: "sha256-<43 base64 chars>=").
-
-    Example:
-      isSha256 "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo=" => true
-      isSha256 "md5-abc" => false
-  */
-  isSha256 = defun [ string bool ] (
-    hash:
-    with builtins;
-    (isString hash) && (stringLength hash == 51) && (substring 0 7 hash == "sha256-")
-  );
 }

@@ -10,15 +10,29 @@ let
   inherit (cid)
     asCid
     cidStringType
+    cidType
     ;
-  inherit (yants) defun string;
+  inherit (cid.encoding) sriHash;
+  inherit (yants)
+    attrs
+    defun
+    drv
+    string
+    option
+    struct
+    either
+    bool
+    ;
 
-  stripTrailingSlash =
+  stripTrailingSlash = defun [ string string ] (
     s:
     let
       len = builtins.stringLength s;
     in
-    if len > 0 && builtins.substring (len - 1) 1 s == "/" then builtins.substring 0 (len - 1) s else s;
+    if len > 0 && builtins.substring (len - 1) 1 s == "/" then builtins.substring 0 (len - 1) s else s
+  );
+
+  url = string; # FIXME;
 
   /*
     Returns the IPFS gateway URL for a given CID.
@@ -27,7 +41,7 @@ let
       gatewayUrl "https://ipfs.io" "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => "https://ipfs.io/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
   */
-  gatewayUrl = defun [ string cidStringType string ] (
+  gatewayUrl = defun [ url cidStringType url ] (
     gateway: cidStr: "${stripTrailingSlash gateway}/ipfs/${cidStr}"
   );
 
@@ -58,32 +72,44 @@ let
       => «derivation»
   */
   fetchFromIpfs =
-    {
-      hash ? null,
-      ipfsCid ? cid.parseHash hash, # already returns cidType
-      gateway ? defaultGateway,
-      asRaw ? false,
-    }:
-    # ipfsCid is cidType — no isCid branch needed
-    let
-      parsed = asCid ipfsCid;
-      codec = parsed.codec;
-      fetch =
-        hash:
-        pkgs.fetchurl {
-          inherit hash;
-          url = gatewayUrl gateway parsed.cidStr;
-        };
-    in
-    if codec == "raw" || asRaw then
-      fetch parsed.hash
-    else if codec == "dag-pb" then
-      if hash == null then
-        throw "fetchFromIpfs currently does not support the actual files of dag-pb CIDs"
-      else
-        fetch hash
-    else
-      throw "fetchFromIpfs unsupported codec: ${codec}";
+    defun
+      [
+        (struct "fetchFromIpfsArgs" {
+          hash = option sriHash;
+          ipfsCid = option (either cidStringType cidType);
+          gateway = option url;
+          asRaw = option bool;
+        })
+        drv
+      ]
+      (
+        {
+          hash ? null,
+          ipfsCid ? cid.parseHash hash, # already returns cidType
+          gateway ? defaultGateway,
+          asRaw ? false,
+        }:
+        # ipfsCid is cidType — no isCid branch needed
+        let
+          parsed = asCid ipfsCid;
+          codec = parsed.codec;
+          fetch =
+            hash:
+            pkgs.fetchurl {
+              inherit hash;
+              url = gatewayUrl gateway parsed.cidStr;
+            };
+        in
+        if codec == "raw" || asRaw then
+          fetch parsed.hash
+        else if codec == "dag-pb" then
+          if hash == null then
+            throw "fetchFromIpfs currently does not support the actual files of dag-pb CIDs"
+          else
+            fetch hash
+        else
+          throw "fetchFromIpfs unsupported codec: ${codec}"
+      );
 in
 {
   inherit gatewayUrl fetchFromIpfs;
@@ -115,41 +141,51 @@ in
         carCid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
       }
   */
-  fetchCarBlocks = # TODO: add typing with carCid as (either cidType string)
-    {
-      carCid,
-      gateway ? defaultGateway,
-    }:
-    let
-      parsed = asCid carCid;
-      carFile = pkgs.fetchurl {
-        inherit (parsed) hash;
-        url = gatewayUrl gateway parsed.cidStr;
-      };
-      allCids = car.carCidStrings carFile;
-      childCids = builtins.filter (c: c != parsed.cidStr) allCids;
-      fetchBlock =
-        cidStr:
+  fetchCarBlocks =
+    defun
+      [
+        (struct "fetchCarBlocksArgs" {
+          carCid = either cidStringType cidType;
+          gateway = option url;
+        })
+        (attrs drv) # { "bafkrei..." = derivation; ... }
+      ]
+      (
+        {
+          carCid,
+          gateway ? defaultGateway,
+        }:
         let
-          blockParsed = cid.parseCid cidStr;
-        in
-        if blockParsed.codec == "raw" then
-          fetchFromIpfs {
-            ipfsCid = blockParsed;
-            inherit gateway;
-          }
-        else
-          car.carExtract {
-            inherit carFile;
-            blockCid = cidStr;
+          parsed = asCid carCid;
+          carFile = pkgs.fetchurl {
+            inherit (parsed) hash;
+            url = gatewayUrl gateway parsed.cidStr;
           };
-    in
-    builtins.listToAttrs (
-      builtins.map (cidStr: {
-        name = cidStr;
-        value = fetchBlock cidStr;
-      }) childCids
-    );
+          allCids = car.carCidStrings carFile;
+          childCids = builtins.filter (c: c != parsed.cidStr) allCids;
+          fetchBlock =
+            cidStr:
+            let
+              blockParsed = cid.parseCid cidStr;
+            in
+            if blockParsed.codec == "raw" then
+              fetchFromIpfs {
+                ipfsCid = blockParsed;
+                inherit gateway;
+              }
+            else
+              car.carExtract {
+                inherit carFile;
+                blockCid = cidStr;
+              };
+        in
+        builtins.listToAttrs (
+          builtins.map (cidStr: {
+            name = cidStr;
+            value = fetchBlock cidStr;
+          }) childCids
+        )
+      );
 
   /*
     Fetches a CAR file from an IPFS gateway and optionally extracts a specific block.
@@ -164,24 +200,35 @@ in
       A derivation containing the CAR file, or the extracted block if blockCid is given.
   */
   fetchFromIpfsCar =
-    {
-      carCid,
-      blockCid ? null,
-      gateway ? defaultGateway,
-    }:
-    let
-      parsed = asCid carCid;
-    in
-    pkgs.fetchzip (
-      {
-        inherit (parsed) hash;
-        url = gatewayUrl gateway parsed.cidStr;
-      }
-      // (pkgs.lib.optionalAttrs (blockCid != null) {
-        postFetch = ''
-          ${car.carExtract { inherit blockCid; }}
-          rm -rf $out/.car
-        '';
-      })
-    );
+    defun
+      [
+        (struct "fetchFromIpfsCarArgs" {
+          carCid = either cidStringType cidType;
+          blockCid = option cidStringType;
+          gateway = option url;
+        })
+        drv
+      ]
+      (
+        {
+          carCid,
+          blockCid ? null,
+          gateway ? defaultGateway,
+        }:
+        let
+          parsed = asCid carCid;
+        in
+        pkgs.fetchzip (
+          {
+            inherit (parsed) hash;
+            url = gatewayUrl gateway parsed.cidStr;
+          }
+          // (pkgs.lib.optionalAttrs (blockCid != null) {
+            postFetch = ''
+              ${car.carExtract { inherit blockCid; }}
+              rm -rf $out/.car
+            '';
+          })
+        )
+      );
 }
