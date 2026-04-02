@@ -6,7 +6,6 @@
 }:
 let
   constants = import ../tests/constants.nix;
-  inherit (constants) cidRaw gateway;
   allTests = import ../tests { inherit pkgs cafeteriaLib; };
   tests = pkgs.lib.runTests allTests;
   totalCount = builtins.length (builtins.attrNames allTests);
@@ -25,8 +24,17 @@ let
     inherit pkgs;
     modulePath = ../modules;
   };
+  fetchFromIpfsChecks = import ./fetchFromIpfs {
+    inherit
+      pkgs
+      cafeteriaLib
+      testCar
+      constants
+      ;
+  };
 in
 moduleChecks
+// fetchFromIpfsChecks
 // {
   formatting = fmtBuild.check self;
   unit-tests = builtins.seq logHeader (
@@ -46,33 +54,6 @@ moduleChecks
         )
       )
   );
-
-  ipfs-fetch-dagpb = cafeteriaLib.ipfs.fetchFromIpfs {
-    ipfsCid = cidRaw;
-    inherit gateway;
-  };
-
-  ipfs-fetch-car =
-    let
-      inherit (cafeteriaLib.car) carInspect carList;
-      grep = (pkgs.lib.getExe pkgs.gnugrep);
-    in
-    pkgs.runCommand "ipfs-fetch-car-check" { } ''
-      echo "=== car inspect ==="
-      cat ${carInspect testCar}
-      echo "✓ car inspect succeeded"
-
-      echo "=== car list ==="
-      cat ${carList testCar}
-
-      # Check that car list output contains at least one CID (starts with 'b')
-      ${grep} -q '^b' ${carList testCar} \
-        || (echo "FAIL: car list produced no CIDs" && exit 1)
-      echo "✓ car list contains CIDs"
-
-      echo "=== all checks passed ==="
-      touch $out
-    '';
 
   car-cids =
     let
