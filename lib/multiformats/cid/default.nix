@@ -1,18 +1,16 @@
 {
   encoding,
   multicodec,
+  multihash,
   yants,
 }:
 
 let
   inherit (encoding)
     base32Byte
-    base64Encode
-    byte
     sha256Hash
     sriHash
     sriHashAlgo
-    sriHashNames
     hexToBytes
     base32Encode
     ;
@@ -26,10 +24,16 @@ let
     defun
     either
     int
-    list
     restrict
     struct
     string
+    ;
+  inherit (multihash)
+    hashFunctionCode
+    hashFnType
+    mkHashFn
+    multihashToSriHash
+    multihashType
     ;
 
   minLength = 10; # FIXME: currently arbitrary
@@ -39,28 +43,7 @@ let
   # Returns true if the CID string is valid (currently just checks length and multibase prefix).
   cidValid = defun [ string bool ] (cid: isValidLength cid && builtins.substring 0 1 cid == "b");
 
-  # Maps multihash function codes (as decimal strings) to their canonical names.
-  hashFunctionNames = {
-    "18" = "sha2-256"; # 0x12
-  };
-
-  hashFunctionCode = restrict "hashFunctionCode" (v: hashFunctionNames ? ${toString v}) int;
-  hashFunctionName = restrict "hashFunctionName" (
-    v: builtins.elem v (builtins.attrValues hashFunctionNames)
-  ) string;
-
   cidVersionType = restrict "cidVersion" (v: v == 0 || v == 1) int;
-
-  hashFnType = struct "hashFn" {
-    name = hashFunctionName; # e.g. "sha2-256"
-    code = hashFunctionCode; # e.g. 18
-  };
-
-  multihashType = struct "multihash" {
-    fn = hashFnType;
-    len = int; # digest length in bytes
-    digest = list byte; # raw byte values
-  };
 
   cidStringType = restrict "cidString" cidValid string;
 
@@ -159,16 +142,7 @@ let
       hashFunction "afybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => { name = "sha2-256"; code = 18; }
   */
-  hashFunction = defun [ cidBody hashFnType ] (
-    body:
-    let
-      hashCode = getHashCode body;
-    in
-    {
-      name = hashFunctionNames.${toString hashCode};
-      code = hashCode;
-    }
-  );
+  hashFunction = defun [ cidBody hashFnType ] (body: mkHashFn (getHashCode body));
 
   /*
     Extracts the CID body (without multibase prefix 'b') from a base32-encoded CID string.
@@ -199,38 +173,6 @@ let
       version = cidVersion cidStr;
     in
     if version != 1 then throw "Unsupported CID version: ${toString version}" else hashFunction body
-  );
-
-  /*
-    Computes a Nix SRI hash string from a parsed multihash attribute set.
-    Maps the multihash function name to the SRI algorithm identifier
-    and base64-encodes the digest bytes.
-
-    Arguments:
-      multihash - A multihash attribute set (as found in a parsed CID's
-                  `multihash` field). Must contain:
-                    fn     - Hash function set with `name` (string)
-                    digest - List of byte values (list of integers)
-
-    Returns:
-      A Nix SRI hash string (e.g. "sha256-w8RzPsiv/QbPnp/1D/...=").
-
-    Throws if no SRI name mapping exists for the hash function.
-
-    Example:
-      cidDigestFromMultihash {
-        fn = { name = "sha2-256"; code = 18; };
-        digest = [ 195 196 115 62 ... ];
-      }
-      => "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
-  */
-  cidDigestFromMultihash = defun [ multihashType sriHash ] (
-    multihash:
-    let
-      inherit (multihash) fn digest;
-      hashName = sriHashNames."${fn.name}";
-    in
-    "${hashName}-${base64Encode digest}"
   );
 
   /*
@@ -282,7 +224,7 @@ let
             multihash
             cidStr
             ;
-          hash = cidDigestFromMultihash multihash;
+          hash = multihashToSriHash multihash;
         }
       );
 
@@ -442,7 +384,6 @@ let
 in
 {
   inherit
-    cidDigestFromMultihash
     cidStringType
     cidVersion
     cidHashFunction
@@ -510,30 +451,5 @@ in
   */
   asCid = defun [ (either cidStringType cidType) cidType ] (
     x: if builtins.isString x then parseCid x else cidType x
-  );
-
-  /*
-    Returns a new cidType attrset with the multihash replaced and the hash
-    field updated accordingly. Use this instead of `//` to ensure that
-    `multihash` and `hash` remain consistent.
-
-    Arguments:
-      parsedCid   - A cidType attrset (e.g. from parseCid or parseHash)
-      newMultihash - A multihashType attrset to replace the existing multihash
-
-    Returns:
-      A cidType attrset with updated `multihash` and `hash` fields.
-
-    Example:
-      withMultihash (parseCid "bafybeig...") { fn = { name = "sha2-256"; code = 18; }; len = 32; digest = [ ... ]; }
-      => { version = 1; codec = "dag-pb"; multihash = { ... }; cidStr = "bafybei..."; hash = "sha256-..."; }
-  */
-  withMultihash = defun [ cidType multihashType cidType ] (
-    parsedCid: newMultihash:
-    parsedCid
-    // {
-      multihash = newMultihash;
-      hash = cidDigestFromMultihash newMultihash;
-    }
   );
 }
