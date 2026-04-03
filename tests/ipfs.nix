@@ -6,7 +6,8 @@
 
 let
   inherit (constants) cidDagPb cidRaw gateway;
-  inherit (cafeteriaLib) cid ipfs;
+  inherit (cafeteriaLib) multiformats ipfs;
+  inherit (multiformats) cid;
 in
 {
   testIpfsGatewayUrlDagPb = {

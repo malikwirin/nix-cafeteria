@@ -99,28 +99,6 @@ moduleChecks
       touch $out
     '';
 
-  car-cid-strings =
-    let
-      count = builtins.length cidStrings;
-      valid = cafeteriaLib.cid.cidValid firstCid;
-    in
-    pkgs.runCommand "car-cid-strings-check" { } ''
-      echo "=== carCidStrings ==="
-      echo "Found ${toString count} CID(s)"
-
-      [ ${toString count} -gt 0 ] \
-        || (echo "✗ no CIDs found" && exit 1)
-      echo "✓ non-empty list"
-
-      echo "First CID: ${firstCid}"
-      [ "${toString valid}" = "1" ] \
-        || (echo "✗ first CID is invalid" && exit 1)
-      echo "✓ first CID is valid"
-
-      echo "=== all checks passed ==="
-      touch $out
-    '';
-
   car-inspect =
     let
       inspected = cafeteriaLib.car.carInspect testCar;

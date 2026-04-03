@@ -10,19 +10,20 @@
 }:
 
 let
-  car = import ./car.nix { inherit pkgs cid yants; };
-  cid = import ./cid { inherit encoding yants; };
-  encoding = import ./encoding.nix { inherit yants; };
+  car = import ./car.nix {
+    inherit pkgs yants;
+    inherit (multiformats) cid;
+  };
+  multiformats = import ./multiformats { inherit yants; };
 in
 {
-  inherit car cid encoding;
+  inherit car multiformats;
   ipfs = import ./ipfs.nix {
     inherit
       pkgs
-      cid
       car
       defaultGateway
-      encoding
+      multiformats
       yants
       ;
   };

@@ -5,7 +5,7 @@
 
 let
   constants = import ./constants.nix;
-  cid = import ./cid { inherit cafeteriaLib constants; };
+  multiformats = import ./multiformats { inherit cafeteriaLib constants; };
   ipfs = import ./ipfs.nix { inherit pkgs cafeteriaLib constants; };
 in
-cid // ipfs
+multiformats // ipfs

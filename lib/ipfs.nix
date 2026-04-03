@@ -1,13 +1,13 @@
 {
   pkgs,
   car,
-  cid,
   defaultGateway,
-  encoding,
+  multiformats,
   yants,
 }:
 
 let
+  inherit (multiformats) cid encoding;
   inherit (cid)
     asCid
     cidStringType
