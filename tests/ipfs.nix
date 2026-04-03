@@ -25,19 +25,23 @@ in
     expected = "https://ipfs.io/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
   };
 
-  testIpfsGatewayUrlInvalidCid = {
-    expr = builtins.tryEval (ipfs.gatewayUrl gateway "notacid1234");
-    expected = {
-      success = false;
-      value = false;
-    };
+  testFetchFromIpfsDagPbRootBlock = {
+    expr =
+      (builtins.tryEval (
+        ipfs.fetchFromIpfs {
+          ipfsCid = cidDagPb;
+          gateway = gateway;
+        }
+      )).success;
+    expected = true;
   };
 
-  testFetchFromIpfsDagPbWithoutHash = {
+  testFetchFromIpfsDagPbFileWithoutHash = {
     expr = builtins.tryEval (
       ipfs.fetchFromIpfs {
         ipfsCid = cidDagPb;
         gateway = gateway;
+        path = "index.html";
       }
     );
     expected = {

@@ -7,7 +7,8 @@
 }:
 
 let
-  inherit (multiformats) cid encoding;
+  inherit (multiformats) cid encoding multicodec;
+  inherit (multicodec) codecName;
   inherit (cid)
     asCid
     cidStringType
@@ -18,11 +19,13 @@ let
     attrs
     defun
     drv
+    function
     string
     option
     struct
     either
     bool
+    restrict
     ;
 
   stripTrailingSlash = defun [ string string ] (
@@ -33,6 +36,139 @@ let
     if len > 0 && builtins.substring (len - 1) 1 s == "/" then builtins.substring 0 (len - 1) s else s
   );
 
+  blockFetcher = function; # (block gateway -> derivation) FIXME: enforce signature
+
+  /*
+    Structured type representing a content-addressed IPFS block.
+    Fields:
+      cid     - Parsed CID identifying the block
+      fetcher - Codec-specific fetch function (blockFetcher)
+      path    - Optional sub-path within the block (UnixFS only)
+      hash    - Content hash; for raw blocks equals cid.hash,
+                for dag-pb file blocks the file content hash
+  */
+  block = struct "IPFSBlock" {
+    cid = cidType;
+    fetcher = blockFetcher;
+    path = option string;
+    hash = sriHash;
+  };
+
+  /*
+    Fetcher for identity blocks. Returns the CID hash directly —
+    the content is embedded in the CID itself.
+  */
+  identityFetcher = defun [
+    block # accepts all kinds of blocks
+    url
+    drv
+  ] (b: _: b.cid.hash);
+
+  /*
+    Fetcher for raw blocks. Fetches the block bytes directly from
+    the gateway using the CID hash as content hash.
+  */
+  rawFetcher =
+    defun
+      [
+        block # accepts all kinds of blocks
+        url
+        drv
+      ]
+      (
+        b: gateway:
+        pkgs.fetchurl {
+          inherit (b) hash;
+          url = gatewayUrl gateway b.cid.cidStr;
+        }
+      );
+
+  dagPbFileBlock = restrict "dagPbFileBlock" (b: b.path != null && b.cid.hash != b.hash) dagPbBlock;
+  # dagPbRootBlock = restrict "dagPbRootBlock" (b: b.path == null) dagPbBlock;
+
+  /*
+    Fetcher for dag-pb file blocks. Fetches a specific file from a
+    UnixFS DAG-PB tree. Requires b.path to be set and b.hash to be
+    the content hash of the target file (not the CID hash).
+  */
+  dagPbFileFetcher = defun [ dagPbFileBlock url drv ] (
+    b: gateway:
+    pkgs.fetchurl {
+      url = gatewayUrl gateway "${b.cid.cidStr}/${b.path}";
+      inherit (b) hash;
+    }
+  );
+
+  nameToFetcher = {
+    "identity" = identityFetcher;
+    "raw" = rawFetcher;
+    "dag-pb" = dagPbFileFetcher;
+  };
+
+  /*
+    Returns the codec-specific fetcher function for a given codec name.
+    Throws if the codec has no registered fetcher.
+  */
+  getFetcher = defun [ codecName blockFetcher ] (
+    codec: nameToFetcher."${codec}" or (throw "Unsupported codec: ${codec}")
+  );
+
+  /*
+    Constructs a minimal block attrset from a parsed CID.
+    Sets path = null and hash = cid.hash as defaults.
+    Use mkBlock to override path and hash.
+  */
+  mkBaseBlock = defun [ cidType block ] (cid: {
+    inherit cid;
+    inherit (cid) hash;
+    fetcher = getFetcher cid.codec;
+    path = null;
+  });
+
+  /*
+    Constructs a full block attrset from a CID with optional path and hash overrides.
+    For dag-pb blocks without path: uses rawFetcher (fetches protobuf blob).
+    For dag-pb blocks with path: uses dagPbFileFetcher (fetches file from UnixFS tree).
+  */
+  mkBlock =
+    defun
+      [
+        (struct "mkBlockArgs" {
+          cid = cidType;
+          path = option string;
+          hash = option sriHash;
+        })
+        block
+      ]
+      (
+        {
+          cid,
+          path ? null,
+          hash ? null,
+        }:
+        let
+          base = mkBaseBlock cid;
+        in
+        base
+        // pkgs.lib.optionalAttrs (path != null) {
+          inherit path;
+        }
+        // pkgs.lib.optionalAttrs (hash != null) {
+          inherit hash;
+        }
+        // pkgs.lib.optionalAttrs (base.cid.codec == "dag-pb" && path == null) {
+          fetcher = rawFetcher;
+        }
+      );
+
+  blockRestrict = defun [ codecName function ] (
+    name: restrict "${name}Block" (b: b.cid.codec == name) block
+  );
+
+  # identityBlock = blockRestrict "identity";
+  # rawBlock = blockRestrict "raw";
+  dagPbBlock = blockRestrict "dag-pb";
+
   url = string; # FIXME;
 
   /*
@@ -42,18 +178,13 @@ let
       gatewayUrl "https://ipfs.io" "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => "https://ipfs.io/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
   */
-  gatewayUrl = defun [ url cidStringType url ] (
-    gateway: cidStr: "${stripTrailingSlash gateway}/ipfs/${cidStr}"
+  gatewayUrl = defun [ url string url ] (
+    gateway: suffix: "${stripTrailingSlash gateway}/ipfs/${suffix}"
   );
 
   /*
     Fetches a file from an IPFS gateway using a CIDv1.
     Accepts both CID strings and parsed cidType attrsets.
-
-    Supported codecs:
-      - raw:    Hash is derived automatically from the CID multihash.
-      - dag-pb: Requires an explicit `hash` argument.
-
     Arguments:
       ipfsCid  - CID string or cidType attrset. Defaults to cid.parseHash hash
                  if only `hash` is provided.
@@ -79,7 +210,7 @@ let
           hash = option sriHash;
           ipfsCid = option (either cidStringType cidType);
           gateway = option url;
-          asRaw = option bool;
+          asRaw = option bool; # TODO: replace with enum codec override
           path = option string;
         })
         drv
@@ -95,23 +226,12 @@ let
         # ipfsCid is cidType — no isCid branch needed
         let
           parsed = asCid ipfsCid;
-          codec = parsed.codec;
-          fetch = # TODO: instead of building different parameters for this fetch function through if else control flow, map codec specific fetchers with their own parameter requirements and call the appropriate one based on the codec.
-            hash:
-            pkgs.fetchurl {
-              inherit hash;
-              url = gatewayUrl gateway parsed.cidStr;
-            };
+          block = mkBlock {
+            cid = parsed;
+            inherit path hash;
+          };
         in
-        if codec == "raw" || asRaw then
-          fetch parsed.hash
-        else if codec == "dag-pb" then
-          if hash == null then
-            throw "fetchFromIpfs currently does not support the actual files of dag-pb CIDs"
-          else
-            fetch hash
-        else
-          throw "fetchFromIpfs unsupported codec: ${codec}"
+        if asRaw then rawFetcher block else block.fetcher block gateway
       );
 in
 {
