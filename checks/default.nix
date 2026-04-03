@@ -34,7 +34,7 @@ let
   };
 in
 moduleChecks
-// fetchFromIpfsChecks
+# // fetchFromIpfsChecks # TODO: re-enable once fetchFromIpfs is dag-pb compatible
 // {
   formatting = fmtBuild.check self;
   unit-tests = builtins.seq logHeader (

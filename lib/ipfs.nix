@@ -79,6 +79,7 @@ let
           ipfsCid = option (either cidStringType cidType);
           gateway = option url;
           asRaw = option bool;
+          path = option string;
         })
         drv
       ]
@@ -88,12 +89,13 @@ let
           ipfsCid ? cid.parseHash hash, # already returns cidType
           gateway ? defaultGateway,
           asRaw ? false,
+          path ? null,
         }:
         # ipfsCid is cidType — no isCid branch needed
         let
           parsed = asCid ipfsCid;
           codec = parsed.codec;
-          fetch =
+          fetch = # TODO: instead of building different parameters for this fetch function through if else control flow, map codec specific fetchers with their own parameter requirements and call the appropriate one based on the codec.
             hash:
             pkgs.fetchurl {
               inherit hash;

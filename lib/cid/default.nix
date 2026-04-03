@@ -58,7 +58,7 @@ let
 
   # Maps multicodec codes (as decimal strings) to their canonical names.
   codecNames = {
-    "00" = "identity"; # 0x00
+    "0" = "identity"; # 0x00
     "85" = "raw"; # 0x55
     "112" = "dag-pb"; # 0x70
     "113" = "dag-cbor"; # 0x71
@@ -363,6 +363,8 @@ let
   */
   mkMultiHashFromCid = defun [ cidStringType multihashType ] (cidStr: mkMultihash (getBody cidStr));
 
+  cidV1String = restrict "cidV1String" (s: cidVersion s == 1) cidStringType;
+
   /*
     Constructs a base32-encoded CIDv1 string for a raw block from a SHA-256 SRI hash.
     Uses CIDv1 with codec "raw" (0x55) and multihash sha2-256 (0x12).
@@ -377,7 +379,7 @@ let
       cidFromSha256 "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
       => "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
   */
-  cidFromSha256 = defun [ sha256Hash cidStringType ] (
+  cidFromSha256 = defun [ sha256Hash cidV1String ] (
     hash:
     let
       hex = builtins.convertHash {
@@ -390,8 +392,8 @@ let
       #   55 = multicodec "raw" (0x55)
       #   12 = multihash function "sha2-256" (0x12)
       #   20 = digest length: 32 bytes (0x20)
-      prefix = "01551220";
-      cidBytes = hexToBytes "${prefix}${hex}";
+      cidV1RawSha256Prefix = "01551220";
+      cidBytes = hexToBytes "${cidV1RawSha256Prefix}${hex}";
     in
     # "b" = multibase prefix for base32lower
     "b${base32Encode cidBytes}"
@@ -499,28 +501,12 @@ in
   /*
     Extracts the raw digest from a CIDv1 string and returns it as a Nix SRI hash string.
     Only base32-encoded CIDv1 with sha2-256 multihash is supported.
-    Throws if the CID is too short, uses an unsupported multibase,
-    has an unsupported version, or uses an unsupported hash function.
 
     Example:
       cidDigest "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => "sha256-w8RzPsiv/QbPnp/1D/xrzS7IWmFwAEu3CWacMd6UORo="
   */
-  cidDigest = defun [ cidStringType supportedShaHash ] (
-    cid:
-    let
-      hashFn = cidHashFunction cid;
-      body = builtins.substring 1 (-1) cid;
-      digestLen = base32Byte body 3;
-      digestBytes = builtins.genList (i: base32Byte body (4 + i)) digestLen;
-      sriName =
-        if sriHashNames ? ${hashFn.name} then
-          sriHashNames.${hashFn.name}
-        else
-          throw "No SRI name for ${hashFn.name}";
-    in
-    "${sriName}-${base64Encode digestBytes}"
-  );
+  cidDigest = defun [ cidStringType supportedShaHash ] (cid: (parseCid cid).hash);
 
   /*
     Normalizes a CID string or cidType attrset to a cidType attrset.
