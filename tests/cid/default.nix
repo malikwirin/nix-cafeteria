@@ -4,8 +4,8 @@
 }:
 
 let
-  inherit (cafeteriaLib) cid;
-  inherit (cid.encoding) isSriHash;
+  inherit (cafeteriaLib) cid encoding;
+  inherit (encoding) isSriHash;
   inherit (constants) cidDagPb cidRaw hash;
 in
 {

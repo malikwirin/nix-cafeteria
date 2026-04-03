@@ -10,17 +10,19 @@
 }:
 
 let
-  cid = import ./cid { inherit yants; };
   car = import ./car.nix { inherit pkgs cid yants; };
+  cid = import ./cid { inherit encoding yants; };
+  encoding = import ./encoding.nix { inherit yants; };
 in
 {
-  inherit car cid;
+  inherit car cid encoding;
   ipfs = import ./ipfs.nix {
     inherit
       pkgs
       cid
       car
       defaultGateway
+      encoding
       yants
       ;
   };

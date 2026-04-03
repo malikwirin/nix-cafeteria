@@ -1,7 +1,6 @@
-{ yants }:
+{ encoding, yants }:
 
 let
-  encoding = import ./encoding.nix { inherit yants; };
   inherit (encoding)
     base32Byte
     base64Encode
@@ -464,7 +463,6 @@ in
     cidVersion
     cidHashFunction
     cidValid
-    encoding
     cidCodec
     parseCid
     cidType

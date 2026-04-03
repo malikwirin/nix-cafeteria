@@ -3,6 +3,7 @@
   car,
   cid,
   defaultGateway,
+  encoding,
   yants,
 }:
 
@@ -12,7 +13,7 @@ let
     cidStringType
     cidType
     ;
-  inherit (cid.encoding) sriHash;
+  inherit (encoding) sriHash;
   inherit (yants)
     attrs
     defun
