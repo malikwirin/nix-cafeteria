@@ -1,4 +1,8 @@
-{ encoding, yants }:
+{
+  encoding,
+  multicodec,
+  yants,
+}:
 
 let
   inherit (encoding)
@@ -11,6 +15,11 @@ let
     sriHashNames
     hexToBytes
     base32Encode
+    ;
+  inherit (multicodec)
+    codecName
+    getCodecName
+    codecType
     ;
   inherit (yants)
     bool
@@ -54,18 +63,6 @@ let
   };
 
   cidStringType = restrict "cidString" cidValid string;
-
-  # Maps multicodec codes (as decimal strings) to their canonical names.
-  codecNames = {
-    "0" = "identity"; # 0x00
-    "85" = "raw"; # 0x55
-    "112" = "dag-pb"; # 0x70
-    "113" = "dag-cbor"; # 0x71
-    "297" = "dag-json"; # 0x0129
-  };
-
-  codecType = restrict "codec" (v: codecNames ? ${toString v}) int;
-  codecName = restrict "codecName" (v: builtins.elem v (builtins.attrValues codecNames)) string;
 
   cidHashConverters = {
     "sha256" = cidFromSha256;
@@ -299,20 +296,7 @@ let
       cidCodec "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
       => "dag-pb"
   */
-  cidCodec = defun [ cidStringType codecName ] (
-    cidStr:
-    let
-      body = getBody cidStr;
-      version = cidVersion cidStr;
-      codecCode = getCodecCode body;
-    in
-    if version != 1 then
-      throw "Unsupported CID version: ${toString version}"
-    else if codecNames ? ${toString codecCode} then
-      codecNames.${toString codecCode}
-    else
-      throw "Unsupported codec code: ${toString codecCode}"
-  );
+  cidCodec = defun [ cidV1String codecName ] (cidStr: getCodecName (getCodecCode (getBody cidStr)));
 
   /*
     Extracts the multihash from a base32-decoded CID body and returns

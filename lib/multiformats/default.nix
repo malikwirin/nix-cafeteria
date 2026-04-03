@@ -1,9 +1,10 @@
 { yants }:
 
 let
+  cid = import ./cid { inherit encoding multicodec yants; };
   encoding = import ./encoding.nix { inherit yants; };
-  cid = import ./cid { inherit encoding yants; };
+  multicodec = import ./multicodec.nix { inherit yants; };
 in
 {
-  inherit cid encoding;
+  inherit cid encoding multicodec;
 }
