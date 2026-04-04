@@ -18,7 +18,7 @@ let
 in
 {
   inherit car multiformats;
-  ipfs = import ./ipfs.nix {
+  ipfs = import ./ipfs {
     inherit
       pkgs
       car

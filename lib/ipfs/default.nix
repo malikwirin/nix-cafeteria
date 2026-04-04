@@ -7,6 +7,8 @@
 }:
 
 let
+  ipfsBlock = import ./block.nix { inherit multiformats yants; };
+  inherit (ipfsBlock) block blockFetcher dagPbFileBlock;
   inherit (multiformats) cid encoding multicodec;
   inherit (multicodec) codecName;
   inherit (cid)
@@ -19,13 +21,11 @@ let
     attrs
     defun
     drv
-    function
     string
     option
     struct
     either
     bool
-    restrict
     ;
 
   stripTrailingSlash = defun [ string string ] (
@@ -35,24 +35,6 @@ let
     in
     if len > 0 && builtins.substring (len - 1) 1 s == "/" then builtins.substring 0 (len - 1) s else s
   );
-
-  blockFetcher = function; # (block gateway -> derivation) FIXME: enforce signature
-
-  /*
-    Structured type representing a content-addressed IPFS block.
-    Fields:
-      cid     - Parsed CID identifying the block
-      fetcher - Codec-specific fetch function (blockFetcher)
-      path    - Optional sub-path within the block (UnixFS only)
-      hash    - Content hash; for raw blocks equals cid.hash,
-                for dag-pb file blocks the file content hash
-  */
-  block = struct "IPFSBlock" {
-    cid = cidType;
-    fetcher = blockFetcher;
-    path = option string;
-    hash = sriHash;
-  };
 
   /*
     Fetcher for identity blocks. Returns the CID hash directly —
@@ -82,9 +64,6 @@ let
           url = gatewayUrl gateway b.cid.cidStr;
         }
       );
-
-  dagPbFileBlock = restrict "dagPbFileBlock" (b: b.path != null && b.cid.hash != b.hash) dagPbBlock;
-  # dagPbRootBlock = restrict "dagPbRootBlock" (b: b.path == null) dagPbBlock;
 
   /*
     Fetcher for dag-pb file blocks. Fetches a specific file from a
@@ -160,14 +139,6 @@ let
           fetcher = rawFetcher;
         }
       );
-
-  blockRestrict = defun [ codecName function ] (
-    name: restrict "${name}Block" (b: b.cid.codec == name) block
-  );
-
-  # identityBlock = blockRestrict "identity";
-  # rawBlock = blockRestrict "raw";
-  dagPbBlock = blockRestrict "dag-pb";
 
   url = string; # FIXME;
 
