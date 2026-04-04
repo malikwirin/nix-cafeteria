@@ -50,18 +50,6 @@ in
     };
   };
 
-  testFetchFromIpfsDagPbWithHash = {
-    expr =
-      (builtins.tryEval (
-        ipfs.fetchFromIpfs {
-          ipfsCid = cidDagPb;
-          gateway = gateway;
-          hash = pkgs.lib.fakeHash;
-        }
-      )).success;
-    expected = true;
-  };
-
   # --- fetchFromIpfsCar ---
 
   testFetchFromIpfsCarRawEvaluates = {

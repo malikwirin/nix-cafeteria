@@ -21,14 +21,11 @@ let
       cid     - Parsed CID identifying the block
       fetcher - Codec-specific fetch function (blockFetcher)
       path    - Optional sub-path within the block (UnixFS only)
-      hash    - Content hash; for raw blocks equals cid.hash,
-                for dag-pb file blocks the file content hash
   */
   block = struct "IPFSBlock" {
     cid = cidType;
     fetcher = blockFetcher;
     path = option string;
-    hash = sriHash;
   };
 
   blockRestrict = defun [ codecName function ] (
@@ -39,9 +36,12 @@ let
   # rawBlock = blockRestrict "raw";
   dagPbBlock = blockRestrict "dag-pb";
 
-  dagPbFileBlock = restrict "dagPbFileBlock" (b: b.path != null && b.cid.hash != b.hash) dagPbBlock;
+  dagPbFileBlock = restrict "dagPbFileBlock" (b: b.path != null) dagPbBlock;
   # dagPbRootBlock = restrict "dagPbRootBlock" (b: b.path == null) dagPbBlock;
 in
 {
   inherit block blockFetcher dagPbFileBlock;
+  getDagPbFileHash = defun [ dagPbFileBlock sriHash ] (
+    b: throw "Getting hash from dagPbFile currently not supported"
+  );
 }

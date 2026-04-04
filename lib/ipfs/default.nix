@@ -8,7 +8,12 @@
 
 let
   ipfsBlock = import ./block.nix { inherit multiformats yants; };
-  inherit (ipfsBlock) block blockFetcher dagPbFileBlock;
+  inherit (ipfsBlock)
+    block
+    blockFetcher
+    dagPbFileBlock
+    getDagPbFileHash
+    ;
   inherit (multiformats) cid encoding multicodec;
   inherit (multicodec) codecName;
   inherit (cid)
@@ -60,7 +65,7 @@ let
       (
         b: gateway:
         pkgs.fetchurl {
-          inherit (b) hash;
+          inherit (b.cid) hash;
           url = gatewayUrl gateway b.cid.cidStr;
         }
       );
@@ -74,7 +79,7 @@ let
     b: gateway:
     pkgs.fetchurl {
       url = gatewayUrl gateway "${b.cid.cidStr}/${b.path}";
-      inherit (b) hash;
+      hash = getDagPbFileHash b;
     }
   );
 
@@ -99,7 +104,6 @@ let
   */
   mkBaseBlock = defun [ cidType block ] (cid: {
     inherit cid;
-    inherit (cid) hash;
     fetcher = getFetcher cid.codec;
     path = null;
   });
@@ -115,7 +119,6 @@ let
         (struct "mkBlockArgs" {
           cid = cidType;
           path = option string;
-          hash = option sriHash;
         })
         block
       ]
@@ -123,7 +126,6 @@ let
         {
           cid,
           path ? null,
-          hash ? null,
         }:
         let
           base = mkBaseBlock cid;
@@ -131,9 +133,6 @@ let
         base
         // pkgs.lib.optionalAttrs (path != null) {
           inherit path;
-        }
-        // pkgs.lib.optionalAttrs (hash != null) {
-          inherit hash;
         }
         // pkgs.lib.optionalAttrs (base.cid.codec == "dag-pb" && path == null) {
           fetcher = rawFetcher;
@@ -199,7 +198,7 @@ let
           parsed = asCid ipfsCid;
           block = mkBlock {
             cid = parsed;
-            inherit path hash;
+            inherit path;
           };
         in
         if asRaw then rawFetcher block else block.fetcher block gateway
