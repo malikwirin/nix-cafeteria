@@ -2,13 +2,15 @@
   multiformats,
   fetchers,
   yants,
+  pbNode,
 }:
 let
   inherit (cid) cidType;
-  inherit (fetchers) blockFetcher;
+  inherit (fetchers) blockFetcher url;
   inherit (encoding) sriHash;
   inherit (multicodec) codecName;
   inherit (multiformats) cid encoding multicodec;
+  inherit (pbNode) pbNodeFromBlock getHashFromPbNode;
   inherit (yants)
     defun
     function
@@ -43,8 +45,17 @@ let
   # dagPbRootBlock = restrict "dagPbRootBlock" (b: b.path == null) dagPbBlock;
 in
 {
-  inherit block blockFetcher dagPbFileBlock;
-  getDagPbFileHash = defun [ dagPbFileBlock sriHash ] (
-    b: throw "Getting hash from dagPbFile currently not supported"
+  inherit
+    block
+    blockFetcher
+    dagPbBlock
+    dagPbFileBlock
+    ;
+  getDagPbFileHash = defun [ dagPbFileBlock url sriHash ] (
+    b: gateway:
+    let
+      pbNodeDrv = pbNodeFromBlock b gateway;
+    in
+    getHashFromPbNode pbNodeDrv b.path
   );
 }

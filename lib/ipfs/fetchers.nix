@@ -75,7 +75,7 @@ let
     b: gateway:
     pkgs.fetchurl {
       url = gatewayUrl gateway "${b.cid.cidStr}/${b.path}";
-      hash = getDagPbFileHash b;
+      hash = getDagPbFileHash b gateway;
     }
   );
 

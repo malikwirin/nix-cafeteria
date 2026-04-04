@@ -7,6 +7,12 @@
 }:
 
 let
+  pbNode = import ./pb-node.nix {
+    inherit yants;
+    fetchers = ipfsFetchers;
+    blocks = ipfsBlock;
+    inherit (multiformats) encoding;
+  };
   ipfsFetchers = import ./fetchers.nix {
     inherit
       pkgs
@@ -22,7 +28,7 @@ let
     url
     ;
   ipfsBlock = import ./block.nix {
-    inherit multiformats yants;
+    inherit pbNode multiformats yants;
     fetchers = ipfsFetchers;
   };
   inherit (ipfsBlock)
