@@ -1,6 +1,11 @@
-{ multiformats, yants }:
+{
+  multiformats,
+  fetchers,
+  yants,
+}:
 let
   inherit (cid) cidType;
+  inherit (fetchers) blockFetcher;
   inherit (encoding) sriHash;
   inherit (multicodec) codecName;
   inherit (multiformats) cid encoding multicodec;
@@ -12,8 +17,6 @@ let
     string
     struct
     ;
-
-  blockFetcher = function; # (block gateway -> derivation) FIXME: enforce signature
 
   /*
     Structured type representing a content-addressed IPFS block.

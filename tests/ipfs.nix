@@ -8,20 +8,21 @@ let
   inherit (constants) cidDagPb cidRaw gateway;
   inherit (cafeteriaLib) multiformats ipfs;
   inherit (multiformats) cid;
+  inherit (ipfs.fetchers) gatewayUrl;
 in
 {
   testIpfsGatewayUrlDagPb = {
-    expr = ipfs.gatewayUrl gateway cidDagPb;
+    expr = gatewayUrl gateway cidDagPb;
     expected = "https://ipfs.io/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
   };
 
   testIpfsGatewayUrlRaw = {
-    expr = ipfs.gatewayUrl gateway cidRaw;
+    expr = gatewayUrl gateway cidRaw;
     expected = "https://ipfs.io/ipfs/bafkreigsvbhuxc3fbe36zd3tzwf6fr2k3vnjcg5gjxzhiwhnqiu5vackey";
   };
 
   testIpfsGatewayUrlTrailingSlash = {
-    expr = ipfs.gatewayUrl "${gateway}/" cidDagPb;
+    expr = gatewayUrl "${gateway}/" cidDagPb;
     expected = "https://ipfs.io/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
   };
 
